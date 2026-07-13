@@ -56,18 +56,20 @@ Legend:
 - [ ] 2.18 Add `ConcurrencyConfig` validation: positive integers.
 - [ ] 2.19 Add `SecretRedactionPatterns(cfg Config) []regexp.Regexp` deriving patterns from sensitive fields.
 - [ ] 2.20 Add `FetchUnreadOnly` boolean to Config (default: `false`).
-- [ ] 2.21 Add unit tests: defaults.
-- [ ] 2.22 Add unit tests: env override.
-- [ ] 2.23 Add unit tests: YAML override.
-- [ ] 2.24 Add unit tests: JSON override.
-- [ ] 2.25 Add unit tests: precedence ordering.
-- [ ] 2.26 Add unit tests: every validation rule.
-- [ ] 2.27 Add unit tests: missing required fields.
-- [ ] 2.28 Add unit tests: malformed YAML/JSON.
-- [ ] 2.29 Add unit tests: sensitive field redaction.
-- [ ] 2.30 Add unit tests for `FetchUnreadOnly` validation and defaulting.
-- [ ] 2.31 Add `.env.example` covering every variable.
-- [ ] 2.32 Add `config.example.yaml`.
+- [ ] 2.21 Add `MaxWindow` duration to Config (default: `72h`).
+- [ ] 2.22 Add unit tests: defaults.
+- [ ] 2.23 Add unit tests: env override.
+- [ ] 2.24 Add unit tests: YAML override.
+- [ ] 2.25 Add unit tests: JSON override.
+- [ ] 2.26 Add unit tests: precedence ordering.
+- [ ] 2.27 Add unit tests: every validation rule.
+- [ ] 2.28 Add unit tests: missing required fields.
+- [ ] 2.29 Add unit tests: malformed YAML/JSON.
+- [ ] 2.30 Add unit tests: sensitive field redaction.
+- [ ] 2.31 Add unit tests for `FetchUnreadOnly` validation and defaulting.
+- [ ] 2.32 Add unit tests for `MaxWindow` validation and defaulting.
+- [ ] 2.33 Add `.env.example` covering every variable.
+- [ ] 2.34 Add `config.example.yaml`.
 
 ## Phase 3 — Shutdown and Context
 
@@ -90,7 +92,7 @@ Legend:
 ## Phase 5 — State Store
 
 - [ ] 5.1 Create `internal/store` package.
-- [ ] 5.2 Define `Store` interface: `RecordRun`, `FinishRun`, `RecordMessage`, `AlreadyProcessed`, `RecordFlag`, `RecordDigest`, `GetRun`, `ListRuns`.
+- [ ] 5.2 Define `Store` interface: `RecordRun`, `FinishRun`, `RecordMessage`, `AlreadyProcessed`, `RecordFlag`, `RecordDigest`, `GetRun`, `ListRuns`, `GetLastSuccessfulRunTime`.
 - [ ] 5.3 Define `Run`, `ProcessedMessage`, `FlagRecord`, `DigestRecord` structs.
 - [ ] 5.4 Implement `SQLiteStore` using `modernc.org/sqlite` (pure-Go, no CGO).
 - [ ] 5.5 Add migrations directory `internal/store/migrations`.
@@ -110,11 +112,12 @@ Legend:
 - [ ] 5.19 Implement `RecordDigest`.
 - [ ] 5.20 Implement `GetRun`.
 - [ ] 5.21 Implement `ListRuns`.
-- [ ] 5.22 Implement in-memory `NoopStore` for stateless mode.
-- [ ] 5.23 Add unit tests per method using in-memory DB.
-- [ ] 5.24 Add integration tests with `testcontainers` SQLite.
-- [ ] 5.25 Add tests for `AlreadyProcessed` correctness under concurrent runs.
-- [ ] 5.26 Add documentation in `README.md` warning that `FetchUnreadOnly=false` requires a persistent state store.
+- [ ] 5.22 Implement `GetLastSuccessfulRunTime` to query the `runs` table for the latest `status = 'success'` record.
+- [ ] 5.23 Implement in-memory `NoopStore` for stateless mode.
+- [ ] 5.24 Add unit tests per method using in-memory DB.
+- [ ] 5.25 Add integration tests with `testcontainers` SQLite.
+- [ ] 5.26 Add tests for `AlreadyProcessed` correctness under concurrent runs.
+- [ ] 5.27 Add documentation in `README.md` warning that `FetchUnreadOnly=false` requires a persistent state store.
 
 ## Phase 6 — Mail Models
 
@@ -419,20 +422,26 @@ Legend:
 - [ ] 33.15 Implement partial-failure semantics per `architecture.md` §7.
 - [ ] 33.16 Implement dry-run mode (skip actions, skip notify).
 - [ ] 33.17 Implement force-reprocess (ignore dedup index).
-- [ ] 33.18 Add unit tests with all fakes.
-- [ ] 33.19 Add test: all stages succeed.
-- [ ] 33.20 Add test: ingest partial failure.
-- [ ] 33.21 Add test: LLM failure triggers fallback digest.
-- [ ] 33.22 Add test: notify partial failure.
-- [ ] 33.23 Add test: context cancellation.
-- [ ] 33.24 Add test: dry-run skips actions and notify.
-- [ ] 33.25 Add test: force-reprocess ignores dedup.
-- [ ] 33.26 Add test: fetching "all emails" with overlapping windows does not produce duplicate digests (proves SQLite dedup works).
+- [ ] 33.18 Implement Dynamic Window logic: If `RunOptions.Window` is zero, query store for `GetLastSuccessfulRunTime()`.
+- [ ] 33.19 Apply `MaxWindow` cap: If `time.Since(lastRun) > MaxWindow`, use `MaxWindow`.
+- [ ] 33.20 Apply Fallback: If no previous run exists, use default 24h window.
+- [ ] 33.21 Add unit tests with all fakes.
+- [ ] 33.22 Add test: all stages succeed.
+- [ ] 33.23 Add test: ingest partial failure.
+- [ ] 33.24 Add test: LLM failure triggers fallback digest.
+- [ ] 33.25 Add test: notify partial failure.
+- [ ] 33.26 Add test: context cancellation.
+- [ ] 33.27 Add test: dry-run skips actions and notify.
+- [ ] 33.28 Add test: force-reprocess ignores dedup.
+- [ ] 33.29 Add test: orchestrator uses `lastRun` time when `Window` is unset.
+- [ ] 33.30 Add test: orchestrator uses `MaxWindow` cap when last run was too long ago.
+- [ ] 33.31 Add test: explicit `--window` overrides dynamic logic completely.
+- [ ] 33.32 Add test: fetching "all emails" with overlapping windows does not produce duplicate digests (proves SQLite dedup works).
 
 ## Phase 34 — CLI Entrypoint
 
 - [ ] 34.1 Create `cmd/emailer/main.go`.
-- [ ] 34.2 Parse CLI flags: `--config`, `--stateless`, `--dry-run`, `--force-reprocess`, `--window`, `--log-level`.
+- [ ] 34.2 Parse CLI flags: `--config`, `--stateless`, `--dry-run`, `--force-reprocess`, `--window`, `--max-window`, `--log-level`.
 - [ ] 34.3 Load config with precedence.
 - [ ] 34.4 Set up logger with secret redaction.
 - [ ] 34.5 Set up signal context.
@@ -536,3 +545,4 @@ Legend:
 - [ ] 43.3 Run end-to-end on staging for 7 consecutive days.
 - [ ] 43.4 Tag `v0.1.0`.
 - [ ] 43.5 Publish release notes.
+```

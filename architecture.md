@@ -1,3 +1,5 @@
+# Architecture
+
 ## 1. Overview
 
 The Email AI Agent is a scheduled, stateful-by-default Go service that
@@ -27,6 +29,7 @@ display the email's timestamp and whether it was read or unread.
 | Secret-safe | All secrets redacted in logs; API keys never appear in URLs. |
 | Testable | All I/O behind interfaces; fakes for mail, LLM, notifier, clock, and store. |
 | Backpressure-aware | Bounded concurrency, token-budgeted batching, circuit breakers. |
+| Self-healing (Dynamic Window) | Derives fetch window from the last successful run timestamp to survive host downtime. |
 
 ## 3. High-Level Architecture
 
@@ -98,6 +101,7 @@ internal/
 - Hot-reloadable subset (log level, concurrency) via SIGHUP.
 - Schema sections: `llm`, `imap`, `telegram`, `slack`, `webhook`, `storage`, `schedule`, `digest`, `labels`, `prompts`.
 - New setting: `FetchUnreadOnly` (boolean, default `false`). When `false`, the app fetches all messages in the time window, relying entirely on the state store for deduplication.
+- New setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM or IMAP server after prolonged host downtime.
 
 ### 5.2 State Store (`internal/store`)
 
@@ -184,6 +188,9 @@ internal/
 
 - Composes ingest → reason → act → notify.
 - Emits a run ID at start; propagates via context and logs.
+- **Dynamic Windowing (Watermark):** By default, the `Since` parameter for mail ingestion is derived from the `finished_at` timestamp of the last successful run in the state store. This ensures no emails are missed if the host machine goes to sleep or misses a scheduled trigger.
+- **Fallback & Caps:** If no previous successful run exists, it defaults to a 24h window. A `--max-window` flag (default 72h) caps the lookback period to prevent overwhelming the LLM context window or IMAP fetch limits after prolonged downtime.
+- Explicit `--window` flags override this dynamic behavior entirely.
 - Partial failure: any per-account ingest failure is logged, alert channel notified, and the run continues with remaining accounts.
 - LLM failure: digest is rendered from a fallback template ("classification unavailable, listing messages"), run status marked `degraded`.
 - Notify failure: run status marked `notify_failed` but exits 0 if actions already applied.
@@ -230,6 +237,7 @@ internal/
 - Idempotency via `(account_label, uid)` dedup index.
 - Fallback digest template on LLM failure.
 - Health checks before run; skip run if store unreachable.
+- Dynamic watermarks for uninterrupted ingestion despite host downtime.
 
 ## 9. Security Considerations
 
