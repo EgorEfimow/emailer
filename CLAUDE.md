@@ -8,7 +8,8 @@ agent) must operate inside this repository. Read it before touching code.
 - **Name**: Email AI Agent (`emailer`).
 - **Language**: Go 1.25+.
 - **Domain**: scheduled ingestion of unread IMAP mail, LLM classification,
-  IMAP keyword flagging, multi-channel digest delivery.
+  IMAP keyword flagging, digest delivery to Telegram.
+- **Execution Model**: One-shot CLI binary executed by OS schedulers (cron, systemd). No long-running server, no HTTP API, no Webhooks.
 - **No code is written in this document.** This is policy only.
 
 ## 2. Non-Negotiable Rules
@@ -65,8 +66,6 @@ packages without updating `architecture.md` first.
 - No real network in unit tests. Use `httptest.Server` or fakes.
 - Table-driven tests are the default.
 - Every public function has at least one happy-path and one error-path test.
-- Fuzz targets: `FuzzBuildPrompt`, `FuzzParseResult`, `FuzzReadBody`.
-- Coverage below 80% fails CI.
 
 ## 7. Adding a New LLM Provider
 
@@ -92,8 +91,7 @@ packages without updating `architecture.md` first.
 ## 9. Adding a New Classification Label
 
 1. Add the label to the default label set in `internal/config`.
-2. Update the prompt template in `internal/llm/prompt.go` (no, the
-   template is loaded from config; update the default template).
+2. Update the default prompt template loaded from config.
 3. Update the IMAP keyword mapping in `internal/mail`.
 4. Update the digest renderer if the label needs special styling.
 5. Add tests for the new label end-to-end.
@@ -106,7 +104,7 @@ packages without updating `architecture.md` first.
   - What changed.
   - Why it changed.
   - How it was tested.
-  - Which document was updated (architecture, planning, claude).
+  - Which document was updated (architecture, planning, CLAUDE).
 - No force-push to `main`.
 - Squash-merge only.
 - **AI Agent Prohibitions**:
@@ -140,5 +138,6 @@ packages without updating `architecture.md` first.
 
 - Any architectural change updates `architecture.md` in the same PR.
 - Any new task or milestone updates `planning.md` in the same PR.
-- Any new operating rule updates this file (`claude.md`) in the same PR.
+- Any new operating rule updates this file (`CLAUDE.md`) in the same PR.
 - Documents are code: review them, lint them, version them.
+- **Drift Prevention**: The biggest structural risk is documentation drifting from code. If a PR removes a feature (e.g., removing an HTTP server), the PR MUST search all three `.md` files for references to that feature and remove/update them. Partial cuts are not allowed.

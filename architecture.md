@@ -2,68 +2,62 @@
 
 ## 1. Overview
 
-The Email AI Agent is a scheduled, stateful-by-default Go service that
-ingests mail from multiple IMAP accounts, classifies each message
-with a configurable LLM provider, persists run state for idempotency,
-applies IMAP keyword flags back to source mailboxes, and delivers a
-rendered digest to one or more notification channels.
+The Email AI Agent is a one-shot, stateful-by-default Go CLI binary. 
+It ingests mail from multiple IMAP accounts, classifies each message 
+with a configurable LLM provider, persists run state for idempotency, 
+applies IMAP keyword flags back to source mailboxes, and delivers a 
+rendered digest to Telegram.
 
-The service can run as a one-shot CLI (cron-driven) or as a long-running
-process exposing an HTTP control plane (manual trigger, health, metrics).
+It is designed to be executed by an OS-level scheduler (e.g., systemd 
+timers, cron, Windows Task Scheduler) 4 times a day. 
 
-By default, the agent fetches **ALL emails** within a configured time window 
-(e.g., last 5 hours), regardless of read/unread status. It relies on its 
-internal SQLite state store to ensure idempotency and prevent duplicate 
-processing across overlapping cron runs. The generated reports explicitly 
-display the email's timestamp and whether it was read or unread.
+By default, the agent fetches **ALL emails** within a dynamic time window. 
+It relies on its internal SQLite state store to ensure idempotency and 
+prevent duplicate processing across overlapping or missed runs. The 
+generated reports explicitly display the email's timestamp and whether 
+it was read or unread.
 
 ## 2. Architectural Principles
 
 | Principle | Implementation |
 | --- | --- |
-| Stateless option, stateful default | SQLite run ledger by default; `--stateless` flag disables persistence for ephemeral runs (requires `FetchUnreadOnly=true`). |
+| Stateful by default | SQLite run ledger by default; `--stateless` flag disables persistence (requires `FetchUnreadOnly=true`). |
 | Idempotent | Composite key `(account_label, uid)` deduplicates work across overlapping runs. |
 | Fail-soft | Per-account and per-message failures are isolated; a partial digest is always produced. |
 | Provider-agnostic | LLM providers behind a single interface; new providers added via registry. |
-| Observable | Structured logs, Prometheus metrics, OpenTelemetry traces, explicit run IDs. |
+| Observable | Structured JSON logs (`slog`) with run-id, account, stage, and duration fields. |
 | Secret-safe | All secrets redacted in logs; API keys never appear in URLs. |
-| Testable | All I/O behind interfaces; fakes for mail, LLM, notifier, clock, and store. |
-| Backpressure-aware | Bounded concurrency, token-budgeted batching, circuit breakers. |
-| Self-healing (Dynamic Window) | Derives fetch window from the last successful run timestamp to survive host downtime. |
+| Self-healing | Derives fetch window from the last successful run timestamp to survive host downtime. |
 
 ## 3. High-Level Architecture
 
 ```text
-                 ┌──────────────────────────────────────────┐
-                 │              Control Plane               │
-                 │  CLI (cron)  •  HTTP API  •  Webhook     │
-                 └───────────────────────┬──────────────────┘
-                                         │
-                                         ▼
-                 ┌──────────────────────────────────────────┐
-                 │            Orchestrator                  │
-                 │  run id • context • shutdown • metrics   │
-                 └───────┬────────┬────────┬────────┬───────┘
-                         │        │        │        │
-              ┌──────────▼┐ ┌─────▼─────┐ ┌▼─────────┐ ┌▼────────┐
-              │  Ingest   │ │  Reason   │ │  Act     │ │ Notify  │
-              │  Service  │ │  Service  │ │ Service  │ │ Service │
-              └─────┬─────┘ └─────┬─────┘ └─────┬────┘ └────┬────┘
-                    │             │            │           │
-              ┌─────▼─────┐ ┌─────▼─────┐ ┌────▼────┐ ┌────▼────┐
-              │ IMAP      │ │ LLM       │ │ IMAP    │ │ Channel │
-              │ Adapter   │ │ Adapters  │ │ Adapter │ │ Adapters│
-              │ (go-imap) │ │ (registry)│ │         │ │         │
-              └───────────┘ └───────────┘ └─────────┘ └─────────┘
-                    │             │            │           │
-                    └─────────────┴────────────┴───────────┘
-                                  │
-                          ┌───────▼────────┐
-                          │  State Store   │
-                          │  (SQLite)      │
-                          │  run ledger    │
-                          │  dedup index   │
-                          └────────────────┘
+ ┌──────────────┐
+ │ OS Scheduler │ (cron, systemd, Task Scheduler)
+ └──────┬───────┘
+        │ executes
+        ▼
+ ┌──────────────────────────────────────────┐
+ │            Orchestrator                  │
+ │  run id • context • shutdown • logging   │
+ └───────┬────────┬────────┬────────┬───────┘
+         │        │        │        │
+  ┌──────▼┐ ┌─────▼─────┐ ┌▼────────┐ ┌▼────────┐
+  │ Ingest│ │  Reason   │ │  Act    │ │ Notify  │
+  │ Service│ │  Service  │ │ Service │ │ Service │
+  └────┬──┘ └─────┬─────┘ └────┬────┘ └────┬────┘
+       │         │            │           │
+  ┌────▼────┐ ┌──▼─────┐ ┌────▼────┐ ┌────▼────┐
+  │ IMAP    │ │ LLM    │ │ IMAP    │ │Telegram │
+  │ Adapter │ │Adapters│ │ Adapter │ │ Adapter │
+  └─────────┘ └────────┘ └─────────┘ └─────────┘
+       │         │            │           │
+       └─────────┴────────────┴───────────┘
+                       │
+               ┌───────▼────────┐
+               │  State Store   │
+               │  (SQLite)      │
+               └────────────────┘
 ```
 
 ## 4. Package Layout
@@ -71,22 +65,16 @@ display the email's timestamp and whether it was read or unread.
 ```text
 cmd/
   emailer/           # one-shot CLI entrypoint
-  server/            # long-running HTTP entrypoint
 internal/
   config/            # layered env + YAML + JSON loader
   log/               # slog setup, secret redaction, run-id injection
-  metrics/           # Prometheus collectors
-  trace/             # OpenTelemetry setup
   shutdown/          # signal handling, context cancellation
   store/             # SQLite run ledger and dedup index
   mail/              # IMAP adapter, models, sanitization
   llm/               # provider registry, prompt builder, parser, retries
-  notify/            # channel registry, renderers, retry policies
-  digest/            # markdown + html renderers
+  notify/            # telegram channel, retry policies
+  digest/            # markdown renderers
   orchestrator/      # pipeline composition, concurrency, partial failures
-  httpapi/           # control-plane handlers
-  webhooks/          # inbound webhook receivers
-  actions/           # plugin interface for custom post-classification actions
   security/          # prompt-injection hardening, output sanitization
   testutil/          # fakes: clock, mail, llm, notifier, store
 ```
@@ -98,22 +86,20 @@ internal/
 - Layered sources, later overrides earlier: defaults → YAML file → env vars → CLI flags.
 - Typed schema with validation.
 - Secrets flagged `sensitive:"true"` are redacted in logs.
-- Hot-reloadable subset (log level, concurrency) via SIGHUP.
-- Schema sections: `llm`, `imap`, `telegram`, `slack`, `webhook`, `storage`, `schedule`, `digest`, `labels`, `prompts`.
-- New setting: `FetchUnreadOnly` (boolean, default `false`). When `false`, the app fetches all messages in the time window, relying entirely on the state store for deduplication.
-- New setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM or IMAP server after prolonged host downtime.
+- Schema sections: `llm`, `imap`, `telegram`, `storage`, `digest`, `labels`, `prompts`.
+- Setting: `FetchUnreadOnly` (boolean, default `false`).
+- Setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM after prolonged host downtime.
 
 ### 5.2 State Store (`internal/store`)
 
 - SQLite database, single file at `--state-path` (default `./state/emailer.db`).
 - Tables:
   - `runs(id, started_at, finished_at, status, message_count, error)`
-  - `processed_messages(run_id, account_label, uid, classification, digest_excerpt, processed_at)`
+  - `processed_messages(run_id, account_label, uid, is_read, classification, digest_excerpt, processed_at)`
   - `flags_applied(account_label, uid, flag, applied_at)`
   - `digests(run_id, channel, status, payload_hash)`
 - Index on `(account_label, uid)` for dedup lookups.
-- **Crucial Note**: When `FetchUnreadOnly` is `false`, the SQLite store is strictly required to prevent duplicate digests across overlapping time windows. Stateless mode (`--stateless`) should only be used with `FetchUnreadOnly=true`.
-- Migrations via `golang-migrate`.
+- When `FetchUnreadOnly` is `false`, the SQLite store is strictly required to prevent duplicate digests.
 
 ### 5.3 Ingest Service (`internal/mail`)
 
@@ -125,16 +111,12 @@ internal/
   }
   ```
 - One persistent IMAP client per account per run (single dial for fetch + flag).
-- STARTTLS upgrade path when only plaintext port is available.
 - Authentication via app passwords exclusively (no OAuth2 flows).
 - Configurable folder list per account (default `INBOX`).
-- Configurable time window (default 24h).
 - **Fetch Mode**: Fetches ALL emails in the time window by default. Conditionally applies the `UNSEEN` flag to the IMAP search criteria if `FetchUnreadOnly` is `true`.
-- **Metadata Capture**: Captures the `\Seen` flag during fetch to determine if an email was read or unread.
+- **Metadata Capture**: Captures the `\Seen` flag during fetch to determine if an email was read or unread, persisting this to the `processed_messages` table.
 - MIME-aware body extraction with charset conversion to UTF-8.
-- Attachment metadata captured (filename, mime, size); bodies not loaded.
 - Concurrency: bounded worker pool, default `min(len(accounts), 4)`.
-- UID ordering: fetch via `SORT` if server supports `SORT=ARRIVAL`, else sort client-side by internal date.
 
 ### 5.4 Reason Service (`internal/llm`)
 
@@ -143,75 +125,43 @@ internal/
   type Provider interface {
       Name() string
       Classify(ctx, Request) (Response, error)
-      Stream(ctx, Request, chan<- Token) error  // optional
   }
   ```
-- Initial built-in providers: Gemini, Ollama, OpenRouter. (Optional providers: OpenAI, Anthropic, Mistral).
+- Built-in providers: Gemini, Ollama, OpenRouter.
 - Composite key `(account_label, uid)` in every payload and response.
-- Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions above and below the data block.
+- Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions.
 - Token budgeter computes per-message cost; batches split before provider call.
-- Streaming supported for providers that expose it.
-- Ensemble mode (optional): call N providers, vote by majority, persist disagreement.
 - Retry policy: 3 attempts, jittered exponential backoff (base 1s, factor 2, jitter ±25%), only on 429/5xx/network.
-- Circuit breaker per provider: opens after 5 consecutive failures, half-open after 30s.
-- Output validated against JSON schema before use; fallback to repair prompt on parse failure.
+- Output validated against JSON schema before use.
 
-### 5.5 Act Service (`internal/actions` + `internal/mail`)
+### 5.5 Act Service (`internal/mail`)
 
 - Custom IMAP keywords (no backslash prefix): `Useful`, `ToDelete`, `Ads`, plus user-defined.
 - Flag writes batched per account in a single `UID STORE`.
-- Plugin interface:
-  ```text
-  type Action interface {
-      Execute(ctx, Message, Classification) error
-  }
-  ```
-- Built-in plugins: flag-writer, telegram-alert, archive, move-to-folder.
 
 ### 5.6 Notify Service (`internal/notify`)
 
-- Channel registry; each channel implements:
-  ```text
-  type Channel interface {
-      Name() string
-      Send(ctx, Digest) error
-  }
-  ```
-- Built-in channels: Telegram (document), Telegram (message), Slack, Email (SMTP), Webhook, File.
-- Renderers (`internal/digest`): Markdown, HTML, plain text.
-- **Report Format**: Digests explicitly render the `Time of Email` and `Read/Unread` status for every message listed.
-- Retry policy: 3 attempts, jittered backoff, same shape as LLM.
-- Failure of one channel does not block others.
-- Alert channel is a special configuration: if the run fails before producing a digest, an alert is sent to the configured alert channel.
+- Channel registry; currently supports Telegram (document and message).
+- Renderers (`internal/digest`): Markdown (explicitly renders Date and Read/Unread status).
+- Retry policy: 3 attempts, jittered backoff.
+- If the run fails before producing a digest, an alert is sent to the configured Telegram chat.
 
 ### 5.7 Orchestrator (`internal/orchestrator`)
 
 - Composes ingest → reason → act → notify.
 - Emits a run ID at start; propagates via context and logs.
-- **Dynamic Windowing (Watermark):** By default, the `Since` parameter for mail ingestion is derived from the `finished_at` timestamp of the last successful run in the state store. This ensures no emails are missed if the host machine goes to sleep or misses a scheduled trigger.
-- **Fallback & Caps:** If no previous successful run exists, it defaults to a 24h window. A `--max-window` flag (default 72h) caps the lookback period to prevent overwhelming the LLM context window or IMAP fetch limits after prolonged downtime.
+- **Dynamic Windowing (Watermark):** By default, the `Since` parameter for mail ingestion is derived from the `finished_at` timestamp of the last successful run. 
+- **Fallback & Caps:** If no previous successful run exists, it defaults to a 24h window. The `--max-window` flag (default 72h) caps the lookback period.
 - Explicit `--window` flags override this dynamic behavior entirely.
-- Partial failure: any per-account ingest failure is logged, alert channel notified, and the run continues with remaining accounts.
-- LLM failure: digest is rendered from a fallback template ("classification unavailable, listing messages"), run status marked `degraded`.
-- Notify failure: run status marked `notify_failed` but exits 0 if actions already applied.
-- Concurrency bounded by `--concurrency` flag.
+- Partial failure: any per-account ingest failure is logged, alert sent, and the run continues with remaining accounts.
+- LLM failure: digest is rendered from a fallback template, run status marked `degraded`.
 - Graceful shutdown: cancels context on SIGINT/SIGTERM, drains in-flight work, persists run status.
-
-### 5.8 Control Plane (`internal/httpapi`)
-
-- `POST /run` — trigger an ad-hoc run.
-- `GET /healthz` — liveness.
-- `GET /readyz` — readiness (checks store reachable).
-- `GET /metrics` — Prometheus.
-- `POST /webhook/imap` — inbound webhook from provider push services.
-- Auth via bearer token or mTLS, configurable.
 
 ## 6. Concurrency Model
 
 - Orchestrator-level: bounded worker pool for account ingestion.
-- Per-account: single IMAP connection, sequential within account (IMAP servers handle pipelining poorly in general).
+- Per-account: single IMAP connection, sequential within account.
 - LLM calls: bounded semaphore, default 4 concurrent provider calls.
-- Notifier calls: fan-out across channels, join with `errgroup`.
 - All goroutines tied to a single root context with cancellation.
 
 ## 7. Error Handling Strategy
@@ -224,19 +174,15 @@ internal/
 | LLM transient failure | Retry 3× with backoff. |
 | LLM permanent failure | Render fallback digest, status `degraded`, alert sent. |
 | Flag write fails | Log per-UID error, continue, status `partial`. |
-| Notify channel fails | Retry 3×, log, continue with other channels. |
-| All notify channels fail | Status `notify_failed`, exit 0 if actions applied. |
+| Telegram send fails | Retry 3×, log, exit non-zero. |
 | Context cancelled | Drain in-flight work, persist run status, exit 130. |
 
 ## 8. Resilience Patterns
 
 - Retry with jittered exponential backoff.
-- Circuit breaker per external dependency.
 - Timeout per stage (ingest 60s, reason 120s, act 30s, notify 30s).
-- Bulkhead via bounded semaphores per stage.
 - Idempotency via `(account_label, uid)` dedup index.
 - Fallback digest template on LLM failure.
-- Health checks before run; skip run if store unreachable.
 - Dynamic watermarks for uninterrupted ingestion despite host downtime.
 
 ## 9. Security Considerations
@@ -244,40 +190,29 @@ internal/
 - Secrets redacted in logs (`sensitive:"true"` tag).
 - API keys sent in `Authorization` header, never in query string.
 - IMAP credentials never logged.
-- Prompt injection: email bodies wrapped in unique delimiters, instructions isolated, output schema-validated, control characters stripped, model output never executed.
-- HTTP control plane authenticated.
+- Prompt injection: email bodies wrapped in unique delimiters, instructions isolated, output schema-validated.
 - SQLite file mode 0600.
-- Docker image runs as non-root UID.
 
 ## 10. Observability
 
-- `slog` JSON handler with run-id, account, stage, duration fields.
-- Prometheus metrics: `emailer_runs_total`, `emailer_run_duration_seconds`, `emailer_messages_fetched_total`, `emailer_llm_calls_total`, `emailer_llm_latency_seconds`, `emailer_flags_applied_total`, `emailer_notify_send_total`, `emailer_errors_total{stage}`.
-- OpenTelemetry traces per run, per stage, per external call.
-- Structured run summary logged at end of every run.
+- `slog` JSON handler outputting to `stdout` (captured by systemd/cron logs).
+- Structured run summary logged at end of every run with stage durations and counts.
 
 ## 11. Deployment
 
-- Docker image: `gcr.io/distroless/static-debian12:nonroot`, under 15 MB.
-- Two deployment modes:
-  - **Cron mode**: `cmd/emailer` one-shot, scheduled by Render Cron Jobs or systemd timer.
-  - **Service mode**: `cmd/server` long-running, scheduled internally via `robfig/cron`, exposes HTTP control plane.
-- Secrets injected via environment or mounted secret files.
-- SQLite volume mounted for persistence.
+- **Execution:** `cmd/emailer` one-shot binary.
+- **Scheduling:** Managed entirely by the host OS (e.g., `systemd.timer`, `cron`). 
+- **Docker (Optional):** A simple `Dockerfile` is provided for containerized environments, but native binary execution is the primary target.
 
 ## 12. Testing Strategy
 
 - Unit tests per package with fakes from `internal/testutil`.
-- Integration tests with `testcontainers` for SQLite and a mock IMAP server.
+- Integration tests with a mock IMAP server.
 - Contract tests per LLM provider using recorded HTTP fixtures.
-- End-to-end test with fake mail server, fake LLM, and fake notifier.
-- Coverage gate at 80%.
-- Fuzz tests for prompt builder, response parser, and MIME parser.
 
 ## 13. Known Limitations
 
-- No full-text search of digests (future: SQLite FTS5).
 - No multi-tenant isolation (single user assumed).
-- No mobile push channel (future: NTFY, Pushover).
-- No interactive classification correction UI (future: web dashboard).
+- No interactive classification correction UI.
 - No OAuth2 support; IMAP authentication relies strictly on app passwords.
+- Single notification channel (Telegram) out of the box.
