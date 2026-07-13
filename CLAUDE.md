@@ -1,0 +1,140 @@
+# Claude — Project Operating Manual
+
+This document is the single source of truth for how Claude (or any coding
+agent) must operate inside this repository. Read it before touching code.
+
+## 1. Project Identity
+
+- **Name**: Email AI Agent (`emailer`).
+- **Language**: Go 1.25+.
+- **Domain**: scheduled ingestion of unread IMAP mail, LLM classification,
+  IMAP keyword flagging, multi-channel digest delivery.
+- **No code is written in this document.** This is policy only.
+
+## 2. Non-Negotiable Rules
+
+1. Never hardcode a provider name, model name, or endpoint in code that
+   is not behind the provider registry.
+2. Never use a backslash prefix on custom IMAP flags. They are plain
+   keywords: `Useful`, `ToDelete`, `Ads`, never `\Useful`.
+3. Never key classifications by UID alone. The composite key is
+   `(account_label, uid)`. Always.
+4. Never put secrets in URLs. API keys travel in headers.
+5. Never log a value tagged `sensitive:"true"`.
+6. Never ignore a `json.Marshal` error or an `io.ReadAll` error.
+7. Never add a network call without a timeout and a retry policy.
+8. Never add a goroutine without tying it to the root context.
+9. Never write business logic in `cmd/`. `cmd/` only wires dependencies.
+10. Never merge without tests for the new behavior.
+
+## 3. Repository Layout
+
+Follow the layout in `architecture.md` §4. Do not invent new top-level
+packages without updating `architecture.md` first.
+
+## 4. Coding Conventions
+
+- Package names are singular and short: `mail`, `llm`, `notify`, `store`.
+- Interfaces live in the consuming package, not the implementing one.
+  - `llm.Provider` is defined in `internal/llm`.
+  - `notify.Channel` is defined in `internal/notify`.
+  - `mail.Ingester` is defined in `internal/mail`.
+- Errors are wrapped with `fmt.Errorf("stage.substage: %w", err)`.
+- Errors are never compared with `==`; use `errors.Is`.
+- All public functions take `context.Context` as the first argument.
+- All constructors return `(T, error)`; no panic-on-misuse constructors.
+- Structured logging via `*slog.Logger` injected, never the global logger.
+- No `init()` functions. No package-level mutable state.
+- No `interface{}`; use `any` (Go 1.18+ alias).
+- No third-party packages without justification in the PR description.
+
+## 5. Configuration Discipline
+
+- Every new option must:
+  1. Be added to the typed `Config` struct.
+  2. Have a default in `defaults.go`.
+  3. Be readable from env, YAML, and CLI flag.
+  4. Be validated in `Validate()`.
+  5. Be documented in `architecture.md` §5.1 and `.env.example`.
+- Secrets carry `sensitive:"true"` struct tag.
+
+## 6. Testing Discipline
+
+- Unit tests live in `*_test.go` next to the code.
+- Fakes live in `internal/testutil`.
+- No real network in unit tests. Use `httptest.Server` or fakes.
+- Table-driven tests are the default.
+- Every public function has at least one happy-path and one error-path test.
+- Fuzz targets: `FuzzBuildPrompt`, `FuzzParseResult`, `FuzzReadBody`.
+- Coverage below 80% fails CI.
+
+## 7. Adding a New LLM Provider
+
+1. Add a constant to the provider enum.
+2. Register the provider in the provider registry.
+3. Implement the `Provider` interface in
+   `internal/llm/<provider>` as a struct with a constructor.
+4. Add HTTP fixtures under `testdata/<provider>/`.
+5. Add a contract test that runs against the fixtures.
+6. Update `architecture.md` §5.4.
+7. Update `.env.example` with provider-specific notes.
+
+## 8. Adding a New Notification Channel
+
+1. Add a constant to the channel enum.
+2. Register the channel in the channel registry.
+3. Implement the `Channel` interface in
+   `internal/notify/<channel>`.
+4. Add an HTTP fixture test.
+5. Update `architecture.md` §5.6.
+6. Update `.env.example`.
+
+## 9. Adding a New Classification Label
+
+1. Add the label to the default label set in `internal/config`.
+2. Update the prompt template in `internal/llm/prompt.go` (no, the
+   template is loaded from config; update the default template).
+3. Update the IMAP keyword mapping in `internal/mail`.
+4. Update the digest renderer if the label needs special styling.
+5. Add tests for the new label end-to-end.
+
+## 10. Commit and PR Hygiene
+
+- Commit messages: `type(scope): subject` (Conventional Commits).
+- PRs must reference the issue or milestone.
+- PRs must include:
+  - What changed.
+  - Why it changed.
+  - How it was tested.
+  - Which document was updated (architecture, planning, claude).
+- No force-push to `main`.
+- Squash-merge only.
+
+## 11. Pitfalls to Avoid
+
+- Do not assume UID ordering equals date ordering.
+- Do not assume `INBOX` is the only folder.
+- Do not assume `text/plain` is always present.
+- Do not assume UTF-8; convert via charset.
+- Do not assume the LLM returns valid JSON; validate against schema.
+- Do not assume the IMAP server allows custom keywords; check `PERMANENTFLAGS`.
+- Do not assume Telegram accepts arbitrary file sizes; cap at 45 MB.
+- Do not assume the run is single-shot; design for idempotency.
+- Do not assume clock monotonicity across processes; persist timestamps.
+
+## 12. When in Doubt
+
+- Prefer explicit over implicit.
+- Prefer failing loudly over silent fallback.
+- Prefer composition over inheritance.
+- Prefer small interfaces over large ones.
+- Prefer tables over switch statements when cases grow past 5.
+- Prefer the existing pattern over inventing a new one.
+- Ask the human before introducing a new external dependency.
+
+## 13. Document Maintenance
+
+- Any architectural change updates `architecture.md` in the same PR.
+- Any new task or milestone updates `planning.md` in the same PR.
+- Any new operating rule updates this file (`claude.md`) in the same PR.
+- Documents are code: review them, lint them, version them.
