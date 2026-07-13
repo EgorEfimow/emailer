@@ -147,7 +147,7 @@ Legend:
 - [ ] 8.3 Define `FetchOptions`: `Since`, `Folders`, `Limit`, `IncludeAttachments`.
 - [ ] 8.4 Implement `IMAPClient` struct wrapping `*client.Client`.
 - [ ] 8.5 Implement `dial(ctx, account)` with TLS, STARTTLS, plaintext options.
-- [ ] 8.6 Implement `login(ctx, account)` with password and OAuth2 bearer.
+- [ ] 8.6 Implement `login(ctx, account)` using app passwords (no OAuth2).
 - [ ] 8.7 Implement `selectFolder(ctx, folder)`.
 - [ ] 8.8 Implement `searchUnseen(ctx, since)` returning UIDs.
 - [ ] 8.9 Implement `sortByDate(uids)` client-side fallback.
@@ -157,12 +157,10 @@ Legend:
 - [ ] 8.13 Implement `applyFlags(ctx, uidset, flags)` using `UID STORE` with plain keywords.
 - [ ] 8.14 Implement `checkPermanentFlags(ctx)` to verify custom keywords allowed.
 - [ ] 8.15 Implement `Close()` with logout.
-- [ ] 8.16 Add OAuth2 token source for Gmail.
-- [ ] 8.17 Add OAuth2 token source for Microsoft.
-- [ ] 8.18 Add unit tests for `readBody` with multipart fixtures.
-- [ ] 8.19 Add unit tests for `sortByDate`.
-- [ ] 8.20 Add unit tests for `applyFlags` flag mapping.
-- [ ] 8.21 Add integration test with `go-imap` mock server.
+- [ ] 8.16 Add unit tests for `readBody` with multipart fixtures.
+- [ ] 8.17 Add unit tests for `sortByDate`.
+- [ ] 8.18 Add unit tests for `applyFlags` flag mapping.
+- [ ] 8.19 Add integration test with `go-imap` mock server.
 
 ## Phase 9 — Mail Concurrency
 
@@ -253,7 +251,7 @@ Legend:
 - [ ] 15.10 Add test for retryable status codes.
 - [ ] 15.11 Add test for streaming token delivery.
 
-## Phase 16 — LLM OpenAI Adapter
+## Phase 16 — LLM OpenAI Adapter (optional)
 
 - [ ] 16.1 Create `internal/llm/openai` package.
 - [ ] 16.2 Implement `Factory`.
@@ -262,7 +260,7 @@ Legend:
 - [ ] 16.5 Implement streaming via SSE.
 - [ ] 16.6 Add fixtures and contract tests as in Phase 15.
 
-## Phase 17 — LLM Anthropic Adapter
+## Phase 17 — LLM Anthropic Adapter (optional)
 
 - [ ] 17.1 Create `internal/llm/anthropic` package.
 - [ ] 17.2 Implement `Factory`.
@@ -285,13 +283,13 @@ Legend:
 - [ ] 19.2 Implement `Factory` (OpenAI-compatible with extra headers).
 - [ ] 19.3 Add fixtures and contract tests.
 
-## Phase 20 — LLM Mistral Adapter
+## Phase 20 — LLM Mistral Adapter (optional)
 
 - [ ] 20.1 Create `internal/llm/mistral` package.
 - [ ] 20.2 Implement `Factory`.
 - [ ] 20.3 Add fixtures and contract tests.
 
-## Phase 21 — LLM Ensemble Mode
+## Phase 21 — LLM Ensemble Mode (optional)
 
 - [ ] 21.1 Create `internal/llm/ensemble.go`.
 - [ ] 21.2 Implement `EnsembleProvider` that calls N providers concurrently.
@@ -536,7 +534,3 @@ Legend:
 - [ ] 43.4 Tag `v0.1.0`.
 - [ ] 43.5 Publish release notes.
 ```
-
----
-
-All three documents are above. No code has been written. The planning is decomposed to the smallest meaningful increment per step, ordered so that each step's dependencies are satisfied by prior steps, and grouped by feature area so progress can be tracked per capability rather than per file.

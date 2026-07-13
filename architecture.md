@@ -3,7 +3,7 @@
 ## 1. Overview
 
 The Email AI Agent is a scheduled, stateful-by-default Go service that
-ingests unread mail from multiple IMAP accounts, classifies each message
+ingests mail from multiple IMAP accounts, classifies each message
 with a configurable LLM provider, persists run state for idempotency,
 applies IMAP keyword flags back to source mailboxes, and delivers a
 rendered digest to one or more notification channels.
@@ -117,7 +117,7 @@ internal/
   ```
 - One persistent IMAP client per account per run (single dial for fetch + flag).
 - STARTTLS upgrade path when only plaintext port is available.
-- OAuth2 bearer token support for Gmail and Microsoft.
+- Authentication via app passwords exclusively (no OAuth2 flows).
 - Configurable folder list per account (default `INBOX`).
 - Configurable time window (default 24h).
 - MIME-aware body extraction with charset conversion to UTF-8.
@@ -135,12 +135,12 @@ internal/
       Stream(ctx, Request, chan<- Token) error  // optional
   }
   ```
-- Built-in providers: Gemini, OpenAI, Anthropic, Ollama, OpenRouter, Mistral.
+- Initial built-in providers: Gemini, Ollama, OpenRouter. (Optional providers: OpenAI, Anthropic, Mistral).
 - Composite key `(account_label, uid)` in every payload and response.
 - Prompt builder wraps each email in unique delimiters and isolates instructions above and below the data block.
 - Token budgeter computes per-message cost; batches split before provider call.
 - Streaming supported for providers that expose it.
-- Ensemble mode: call N providers, vote by majority, persist disagreement.
+- Ensemble mode (optional): call N providers, vote by majority, persist disagreement.
 - Retry policy: 3 attempts, jittered exponential backoff (base 1s, factor 2, jitter ±25%), only on 429/5xx/network.
 - Circuit breaker per provider: opens after 5 consecutive failures, half-open after 30s.
 - Output validated against JSON schema before use; fallback to repair prompt on parse failure.
@@ -264,4 +264,4 @@ internal/
 - No multi-tenant isolation (single user assumed).
 - No mobile push channel (future: NTFY, Pushover).
 - No interactive classification correction UI (future: web dashboard).
-- OAuth2 token refresh is best-effort; expired tokens surface as ingest failures.
+- No OAuth2 support; IMAP authentication relies strictly on app passwords.
