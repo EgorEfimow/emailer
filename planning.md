@@ -55,17 +55,19 @@ Legend:
 - [ ] 2.17 Add `PromptConfig` validation: template parses.
 - [ ] 2.18 Add `ConcurrencyConfig` validation: positive integers.
 - [ ] 2.19 Add `SecretRedactionPatterns(cfg Config) []regexp.Regexp` deriving patterns from sensitive fields.
-- [ ] 2.20 Add unit tests: defaults.
-- [ ] 2.21 Add unit tests: env override.
-- [ ] 2.22 Add unit tests: YAML override.
-- [ ] 2.23 Add unit tests: JSON override.
-- [ ] 2.24 Add unit tests: precedence ordering.
-- [ ] 2.25 Add unit tests: every validation rule.
-- [ ] 2.26 Add unit tests: missing required fields.
-- [ ] 2.27 Add unit tests: malformed YAML/JSON.
-- [ ] 2.28 Add unit tests: sensitive field redaction.
-- [ ] 2.29 Add `.env.example` covering every variable.
-- [ ] 2.30 Add `config.example.yaml`.
+- [ ] 2.20 Add `FetchUnreadOnly` boolean to Config (default: `false`).
+- [ ] 2.21 Add unit tests: defaults.
+- [ ] 2.22 Add unit tests: env override.
+- [ ] 2.23 Add unit tests: YAML override.
+- [ ] 2.24 Add unit tests: JSON override.
+- [ ] 2.25 Add unit tests: precedence ordering.
+- [ ] 2.26 Add unit tests: every validation rule.
+- [ ] 2.27 Add unit tests: missing required fields.
+- [ ] 2.28 Add unit tests: malformed YAML/JSON.
+- [ ] 2.29 Add unit tests: sensitive field redaction.
+- [ ] 2.30 Add unit tests for `FetchUnreadOnly` validation and defaulting.
+- [ ] 2.31 Add `.env.example` covering every variable.
+- [ ] 2.32 Add `config.example.yaml`.
 
 ## Phase 3 — Shutdown and Context
 
@@ -112,11 +114,12 @@ Legend:
 - [ ] 5.23 Add unit tests per method using in-memory DB.
 - [ ] 5.24 Add integration tests with `testcontainers` SQLite.
 - [ ] 5.25 Add tests for `AlreadyProcessed` correctness under concurrent runs.
+- [ ] 5.26 Add documentation in `README.md` warning that `FetchUnreadOnly=false` requires a persistent state store.
 
 ## Phase 6 — Mail Models
 
 - [ ] 6.1 Create `internal/mail` package.
-- [ ] 6.2 Define `Message` struct: `AccountLabel`, `UID`, `Folder`, `MessageID`, `From`, `To`, `Subject`, `Date`, `Body`, `AttachmentMetas`.
+- [ ] 6.2 Define `Message` struct: `AccountLabel`, `UID`, `Folder`, `MessageID`, `From`, `To`, `Subject`, `Date`, `Body`, `IsRead`, `AttachmentMetas`.
 - [ ] 6.3 Define `AttachmentMeta` struct: `Filename`, `MIME`, `Size`.
 - [ ] 6.4 Define `Classification` type as string.
 - [ ] 6.5 Define `MessageKey` type as `(AccountLabel, UID)` composite.
@@ -142,14 +145,14 @@ Legend:
 
 - [ ] 8.1 Add dependency `github.com/emersion/go-imap/v15` and `github.com/emersion/go-message`.
 - [ ] 8.2 Define `Ingester` interface: `Fetch`, `ApplyFlags`, `Close`.
-- [ ] 8.3 Define `FetchOptions`: `Since`, `Folders`, `Limit`, `IncludeAttachments`.
+- [ ] 8.3 Define `FetchOptions`: `Since`, `Folders`, `Limit`, `IncludeAttachments`, `UnreadOnly`.
 - [ ] 8.4 Implement `IMAPClient` struct wrapping `*client.Client`.
 - [ ] 8.5 Implement `dial(ctx, account)` with TLS, STARTTLS, plaintext options.
 - [ ] 8.6 Implement `login(ctx, account)` using app passwords (no OAuth2).
 - [ ] 8.7 Implement `selectFolder(ctx, folder)`.
-- [ ] 8.8 Implement `searchUnseen(ctx, since)` returning UIDs.
+- [ ] 8.8 Implement `searchByWindow(ctx, since, unreadOnly)` returning UIDs.
 - [ ] 8.9 Implement `sortByDate(uids)` client-side fallback.
-- [ ] 8.10 Implement `fetchHeaders(ctx, uidset)` returning envelopes.
+- [ ] 8.10 Implement `fetchHeaders(ctx, uidset)` returning envelopes and `\Seen` flag status.
 - [ ] 8.11 Implement `fetchBody(ctx, uidset)` returning body sections.
 - [ ] 8.12 Implement `readBody(part io.Reader, contentType string) (string, []AttachmentMeta, error)`.
 - [ ] 8.13 Implement `applyFlags(ctx, uidset, flags)` using `UID STORE` with plain keywords.
@@ -158,7 +161,8 @@ Legend:
 - [ ] 8.16 Add unit tests for `readBody` with multipart fixtures.
 - [ ] 8.17 Add unit tests for `sortByDate`.
 - [ ] 8.18 Add unit tests for `applyFlags` flag mapping.
-- [ ] 8.19 Add integration test with `go-imap` mock server.
+- [ ] 8.19 Add unit tests for IMAP search criteria generation (verify `UNSEEN` flag is conditionally added).
+- [ ] 8.20 Add integration test with `go-imap` mock server verifying "all emails" fetch returns read and unread messages.
 
 ## Phase 9 — Mail Concurrency
 
@@ -173,7 +177,7 @@ Legend:
 
 - [ ] 10.1 Create `internal/llm` package.
 - [ ] 10.2 Define `Request` struct: `Messages []InputMessage`, `Labels []Classification`, `PromptTemplate string`, `BudgetTokens int`.
-- [ ] 10.3 Define `InputMessage` struct: `Key MessageKey`, `From`, `Subject`, `Date`, `Body`.
+- [ ] 10.3 Define `InputMessage` struct: `Key MessageKey`, `From`, `Subject`, `Date`, `IsRead`, `Body`.
 - [ ] 10.4 Define `Response` struct: `Digest string`, `Classifications map[MessageKey]Classification`, `TokensUsed int`, `ProviderMeta`.
 - [ ] 10.5 Define `Provider` interface: `Name()`, `Classify(ctx, Request) (Response, error)`, `SupportsStreaming() bool`, `Stream(ctx, Request, chan<- Token) error`.
 - [ ] 10.6 Define `Token` struct for streaming.
@@ -187,7 +191,7 @@ Legend:
 - [ ] 11.1 Create `internal/llm/prompt.go`.
 - [ ] 11.2 Define `BuildPrompt(req Request) (string, error)`.
 - [ ] 11.3 Wrap each email in delimiters: `<email uid="..." account="..."> ... </email>`.
-- [ ] 11.4 Place instructions above and below the data block.
+- [ ] 11.4 Place instructions above and below the data block, including email metadata (Date, Read/Unread status).
 - [ ] 11.5 Include explicit JSON schema in the prompt.
 - [ ] 11.6 Include label definitions from `LabelsConfig`.
 - [ ] 11.7 Make template configurable via `PromptConfig.Template`.
@@ -312,8 +316,8 @@ Legend:
 - [ ] 23.1 Create `internal/digest` package.
 - [ ] 23.2 Define `Renderer` interface: `Render(data DigestData) ([]byte, string, error)` returning bytes, MIME type, error.
 - [ ] 23.3 Define `DigestData` struct: `RunID`, `StartedAt`, `FinishedAt`, `Messages []ClassifiedMessage`, `Summary string`, `Status`.
-- [ ] 23.4 Implement `MarkdownRenderer` using `text/template`.
-- [ ] 23.5 Implement `HTMLRenderer` using `html/template` (XSS-safe).
+- [ ] 23.4 Implement `MarkdownRenderer` using `text/template` (must explicitly render Date and Read/Unread status).
+- [ ] 23.5 Implement `HTMLRenderer` using `html/template` (XSS-safe, must explicitly render Date and Read/Unread status).
 - [ ] 23.6 Implement `PlainTextRenderer`.
 - [ ] 23.7 Implement `FallbackRenderer` for LLM failure (lists messages without classifications).
 - [ ] 23.8 Add unit tests per renderer.
@@ -423,6 +427,7 @@ Legend:
 - [ ] 33.23 Add test: context cancellation.
 - [ ] 33.24 Add test: dry-run skips actions and notify.
 - [ ] 33.25 Add test: force-reprocess ignores dedup.
+- [ ] 33.26 Add test: fetching "all emails" with overlapping windows does not produce duplicate digests (proves SQLite dedup works).
 
 ## Phase 34 — CLI Entrypoint
 
@@ -531,4 +536,3 @@ Legend:
 - [ ] 43.3 Run end-to-end on staging for 7 consecutive days.
 - [ ] 43.4 Tag `v0.1.0`.
 - [ ] 43.5 Publish release notes.
-```

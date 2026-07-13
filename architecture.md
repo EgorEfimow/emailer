@@ -1,5 +1,3 @@
-# Architecture
-
 ## 1. Overview
 
 The Email AI Agent is a scheduled, stateful-by-default Go service that
@@ -11,12 +9,18 @@ rendered digest to one or more notification channels.
 The service can run as a one-shot CLI (cron-driven) or as a long-running
 process exposing an HTTP control plane (manual trigger, health, metrics).
 
+By default, the agent fetches **ALL emails** within a configured time window 
+(e.g., last 5 hours), regardless of read/unread status. It relies on its 
+internal SQLite state store to ensure idempotency and prevent duplicate 
+processing across overlapping cron runs. The generated reports explicitly 
+display the email's timestamp and whether it was read or unread.
+
 ## 2. Architectural Principles
 
 | Principle | Implementation |
 | --- | --- |
-| Stateless option, stateful default | SQLite run ledger by default; `--stateless` flag disables persistence for ephemeral runs. |
-| Idempotent | Composite key `(account_label, uid)` deduplicates work across runs. |
+| Stateless option, stateful default | SQLite run ledger by default; `--stateless` flag disables persistence for ephemeral runs (requires `FetchUnreadOnly=true`). |
+| Idempotent | Composite key `(account_label, uid)` deduplicates work across overlapping runs. |
 | Fail-soft | Per-account and per-message failures are isolated; a partial digest is always produced. |
 | Provider-agnostic | LLM providers behind a single interface; new providers added via registry. |
 | Observable | Structured logs, Prometheus metrics, OpenTelemetry traces, explicit run IDs. |
@@ -93,6 +97,7 @@ internal/
 - Secrets flagged `sensitive:"true"` are redacted in logs.
 - Hot-reloadable subset (log level, concurrency) via SIGHUP.
 - Schema sections: `llm`, `imap`, `telegram`, `slack`, `webhook`, `storage`, `schedule`, `digest`, `labels`, `prompts`.
+- New setting: `FetchUnreadOnly` (boolean, default `false`). When `false`, the app fetches all messages in the time window, relying entirely on the state store for deduplication.
 
 ### 5.2 State Store (`internal/store`)
 
@@ -103,8 +108,8 @@ internal/
   - `flags_applied(account_label, uid, flag, applied_at)`
   - `digests(run_id, channel, status, payload_hash)`
 - Index on `(account_label, uid)` for dedup lookups.
+- **Crucial Note**: When `FetchUnreadOnly` is `false`, the SQLite store is strictly required to prevent duplicate digests across overlapping time windows. Stateless mode (`--stateless`) should only be used with `FetchUnreadOnly=true`.
 - Migrations via `golang-migrate`.
-- `--stateless` flag uses an in-memory no-op store.
 
 ### 5.3 Ingest Service (`internal/mail`)
 
@@ -120,6 +125,8 @@ internal/
 - Authentication via app passwords exclusively (no OAuth2 flows).
 - Configurable folder list per account (default `INBOX`).
 - Configurable time window (default 24h).
+- **Fetch Mode**: Fetches ALL emails in the time window by default. Conditionally applies the `UNSEEN` flag to the IMAP search criteria if `FetchUnreadOnly` is `true`.
+- **Metadata Capture**: Captures the `\Seen` flag during fetch to determine if an email was read or unread.
 - MIME-aware body extraction with charset conversion to UTF-8.
 - Attachment metadata captured (filename, mime, size); bodies not loaded.
 - Concurrency: bounded worker pool, default `min(len(accounts), 4)`.
@@ -137,7 +144,7 @@ internal/
   ```
 - Initial built-in providers: Gemini, Ollama, OpenRouter. (Optional providers: OpenAI, Anthropic, Mistral).
 - Composite key `(account_label, uid)` in every payload and response.
-- Prompt builder wraps each email in unique delimiters and isolates instructions above and below the data block.
+- Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions above and below the data block.
 - Token budgeter computes per-message cost; batches split before provider call.
 - Streaming supported for providers that expose it.
 - Ensemble mode (optional): call N providers, vote by majority, persist disagreement.
@@ -168,6 +175,7 @@ internal/
   ```
 - Built-in channels: Telegram (document), Telegram (message), Slack, Email (SMTP), Webhook, File.
 - Renderers (`internal/digest`): Markdown, HTML, plain text.
+- **Report Format**: Digests explicitly render the `Time of Email` and `Read/Unread` status for every message listed.
 - Retry policy: 3 attempts, jittered backoff, same shape as LLM.
 - Failure of one channel does not block others.
 - Alert channel is a special configuration: if the run fails before producing a digest, an alert is sent to the configured alert channel.
