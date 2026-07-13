@@ -19,11 +19,9 @@ Legend:
 - [ ] 0.6 Add `Makefile` with `build`, `test`, `lint`, `fmt`, `tidy`, `clean`, `docker`, `run`, `server` targets.
 - [ ] 0.7 Add `.golangci.yml` with `errcheck`, `govet`, `staticcheck`, `gocyclo`, `misspell`.
 - [ ] 0.8 Add `renovate.json` for dependency automation.
-- [ ] 0.9 Add `CODEOWNERS`.
-- [ ] 0.10 Add `CONTRIBUTING.md` referencing `claude.md`.
-- [ ] 0.11 Add `SECURITY.md` with vulnerability reporting policy.
-- [ ] 0.12 Add GitHub Actions workflow `ci.yml`: `lint`, `test`, `build` on push and PR.
-- [ ] 0.13 Add GitHub Actions workflow `release.yml` on tag.
+- [ ] 0.9 Add `SECURITY.md` with vulnerability reporting policy.
+- [ ] 0.10 Add GitHub Actions workflow `ci.yml`: `lint`, `test`, `build` on push and PR.
+- [ ] 0.11 Add GitHub Actions workflow `release.yml` on tag.
 
 ## Phase 1 — Logging Foundation
 
