@@ -166,10 +166,10 @@ Legend:
 ## Phase 13 — LLM Gemini Adapter
 
 ### Branch: `feat/llm-gemini`
-- [ ] 13.1 Create `internal/llm/gemini` package. Implement `Factory` and `Classify` using `x-goog-api-key` header.
-- [ ] 13.2 Implement response unmarshaling and token usage extraction.
-- [ ] 13.3 Add HTTP fixture under `testdata/gemini/` and contract tests using `httptest.Server`.
-- [ ] 13.4 Add test for API key in header (not URL) and retryable status codes.
+- [x] 13.1 Create `internal/llm/gemini` package. Implement `Factory` and `Classify` using `x-goog-api-key` header.
+- [x] 13.2 Implement response unmarshaling and token usage extraction.
+- [x] 13.3 Add HTTP fixture under `testdata/gemini/` and contract tests using `httptest.Server`.
+- [x] 13.4 Add test for API key in header (not URL) and retryable status codes.
 
 ## Phase 17 — Digest Renderers
 

@@ -1,0 +1,21 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {"text": "I cannot process this content as it may violate safety policies."}
+        ],
+        "role": "model"
+      },
+      "finishReason": "SAFETY",
+      "safetyRatings": [
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "probability": "MEDIUM"}
+      ]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 150,
+    "candidatesTokenCount": 15,
+    "totalTokenCount": 165
+  }
+}

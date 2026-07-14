@@ -1,0 +1,24 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"classifications\": [\n  {\"uid\": 42, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.95, \"reason\": \"Important project update\"},\n  {\"uid\": 43, \"account\": \"personal\", \"label\": \"Ads\", \"confidence\": 0.88, \"reason\": \"Marketing newsletter\"}\n]}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "safetyRatings": [
+        {"category": "HARM_CATEGORY_HARASSMENT", "probability": "NEGLIGIBLE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "probability": "NEGLIGIBLE"}
+      ]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 342,
+    "candidatesTokenCount": 89,
+    "totalTokenCount": 431
+  }
+}
