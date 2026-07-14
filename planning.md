@@ -44,15 +44,15 @@ Legend:
 - [x] 2.3 Add unit tests for defaults and struct loading.
 
 ### Branch: `feat/config-loaders`
-- [ ] 2.4 Implement env loader `loadEnv(cfg *Config) error` using `os.LookupEnv`.
-- [ ] 2.5 Add unit tests for env override.
-- [ ] 2.6 Implement YAML loader `loadYAML(path string, cfg *Config) error`.
-- [ ] 2.7 Add unit tests for YAML override.
-- [ ] 2.8 Implement JSON loader `loadJSON(path string, cfg *Config) error`.
-- [ ] 2.9 Add unit tests for JSON override.
-- [ ] 2.10 Implement CLI flag loader using `flag` package.
-- [ ] 2.11 Implement `Load(opts LoadOptions) (Config, error)` that applies sources in precedence order.
-- [ ] 2.12 Add unit tests for precedence ordering.
+- [x] 2.4 Implement env loader `loadEnv(cfg *Config) error` using `os.LookupEnv`.
+- [x] 2.5 Add unit tests for env override.
+- [x] 2.6 Implement YAML loader `loadYAML(path string, cfg *Config) error`.
+- [x] 2.7 Add unit tests for YAML override.
+- [x] 2.8 Implement JSON loader `loadJSON(path string, cfg *Config) error`.
+- [x] 2.9 Add unit tests for JSON override.
+- [x] 2.10 Implement CLI flag loader using `flag` package.
+- [x] 2.11 Implement `Load(opts LoadOptions) (Config, error)` that applies sources in precedence order.
+- [x] 2.12 Add unit tests for precedence ordering.
 
 ### Branch: `feat/config-validation`
 - [ ] 2.13 Implement `Validate(cfg Config) error` with full validation.
