@@ -87,15 +87,15 @@ Legend:
 - [x] 4.8 Add unit tests verifying migrations apply cleanly to an in-memory DB.
 
 ### Branch: `feat/sqlite-implementation`
-- [ ] 4.9 Implement `NewSQLiteStore`, `Close()`, `RecordRun`, and `FinishRun`.
-- [ ] 4.10 Add unit tests for `RecordRun` and `FinishRun`.
-- [ ] 4.11 Implement `RecordMessage` and `AlreadyProcessed` (batch lookup).
-- [ ] 4.12 Add unit tests for `RecordMessage` and `AlreadyProcessed` (including concurrent runs).
-- [ ] 4.13 Implement `RecordFlag` and `RecordDigest`.
-- [ ] 4.14 Add unit tests for `RecordFlag` and `RecordDigest`.
-- [ ] 4.15 Implement `GetRun`, `ListRuns`, and `GetLastSuccessfulRunTime`.
-- [ ] 4.16 Add unit tests for `GetRun`, `ListRuns`, and `GetLastSuccessfulRunTime`.
-- [ ] 4.17 Implement in-memory `NoopStore` for stateless mode.
+- [x] 4.9 Implement `NewSQLiteStore`, `Close()`, `RecordRun`, and `FinishRun`.
+- [x] 4.10 Add unit tests for `RecordRun` and `FinishRun`.
+- [x] 4.11 Implement `RecordMessage` and `AlreadyProcessed` (batch lookup).
+- [x] 4.12 Add unit tests for `RecordMessage` and `AlreadyProcessed` (including concurrent runs).
+- [x] 4.13 Implement `RecordFlag` and `RecordDigest`.
+- [x] 4.14 Add unit tests for `RecordFlag` and `RecordDigest`.
+- [x] 4.15 Implement `GetRun`, `ListRuns`, and `GetLastSuccessfulRunTime`.
+- [x] 4.16 Add unit tests for `GetRun`, `ListRuns`, and `GetLastSuccessfulRunTime`.
+- [x] 4.17 Implement in-memory `NoopStore` for stateless mode.
 
 ## Phase 5 — Mail Models
 

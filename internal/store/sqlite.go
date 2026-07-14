@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,51 +88,396 @@ func runMigrations(db *sql.DB) error {
 }
 
 // ---------------------------------------------------------------------------
-// Store interface — stub implementations return "not implemented" errors.
-// Full implementations are added in later steps (4.9–4.16).
+// Run lifecycle
 // ---------------------------------------------------------------------------
 
-func (s *SQLiteStore) RecordRun(_ context.Context, _ Run) (Run, error) {
-	return Run{}, errNotImplemented("RecordRun")
+// RecordRun persists a new run record. If the run ID is empty, a unique ID is
+// generated. Returns the run with its assigned ID.
+func (s *SQLiteStore) RecordRun(ctx context.Context, r Run) (Run, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if r.ID == "" {
+		id, err := generateID()
+		if err != nil {
+			return Run{}, fmt.Errorf("store.RecordRun: generate id: %w", err)
+		}
+		r.ID = id
+	}
+
+	if r.StartedAt.IsZero() {
+		r.StartedAt = time.Now()
+	}
+	if r.Status == "" {
+		r.Status = RunStatusRunning
+	}
+
+	const query = "INSERT INTO runs (id, started_at, finished_at, status, message_count, error) VALUES (?, ?, ?, ?, ?, ?)"
+	_, err := s.db.ExecContext(ctx, query,
+		r.ID,
+		r.StartedAt,
+		nil, // finished_at is NULL when starting
+		r.Status,
+		r.MessageCount,
+		r.Error,
+	)
+	if err != nil {
+		return Run{}, fmt.Errorf("store.RecordRun: exec: %w", err)
+	}
+
+	return r, nil
 }
 
-func (s *SQLiteStore) FinishRun(_ context.Context, _ string, _ RunStatus, _ int, _ error) error {
-	return errNotImplemented("FinishRun")
+// FinishRun updates a run record with completion status, finished_at, and
+// error details.
+func (s *SQLiteStore) FinishRun(ctx context.Context, runID string, status RunStatus, messageCount int, runErr error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	errStr := ""
+	if runErr != nil {
+		errStr = runErr.Error()
+	}
+
+	const query = "UPDATE runs SET finished_at = ?, status = ?, message_count = ?, error = ? WHERE id = ?"
+	result, err := s.db.ExecContext(ctx, query,
+		time.Now(),
+		status,
+		messageCount,
+		errStr,
+		runID,
+	)
+	if err != nil {
+		return fmt.Errorf("store.FinishRun: exec: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store.FinishRun: rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("store.FinishRun: %w", ErrRunNotFound)
+	}
+
+	return nil
 }
 
-func (s *SQLiteStore) GetRun(_ context.Context, _ string) (Run, error) {
-	return Run{}, errNotImplemented("GetRun")
+// GetRun retrieves a single run by ID.
+func (s *SQLiteStore) GetRun(ctx context.Context, runID string) (Run, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	const query = "SELECT id, started_at, finished_at, status, message_count, error FROM runs WHERE id = ?"
+	row := s.db.QueryRowContext(ctx, query, runID)
+
+	var (
+		id             string
+		startedAtStr   string
+		finishedAtStr  sql.NullString
+		status         string
+		messageCount   int
+		errorStr       string
+	)
+	if err := row.Scan(&id, &startedAtStr, &finishedAtStr, &status, &messageCount, &errorStr); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Run{}, fmt.Errorf("store.GetRun: %w", ErrRunNotFound)
+		}
+		return Run{}, fmt.Errorf("store.GetRun: scan: %w", err)
+	}
+
+	startedAt, err := parseTime(startedAtStr)
+	if err != nil {
+		return Run{}, fmt.Errorf("store.GetRun: parse started_at: %w", err)
+	}
+
+	run := Run{
+		ID:           id,
+		StartedAt:    startedAt,
+		Status:       RunStatus(status),
+		MessageCount: messageCount,
+		Error:        errorStr,
+	}
+	if finishedAtStr.Valid {
+		t, err := parseTime(finishedAtStr.String)
+		if err != nil {
+			return Run{}, fmt.Errorf("store.GetRun: parse finished_at: %w", err)
+		}
+		run.FinishedAt = &t
+	}
+
+	return run, nil
 }
 
-func (s *SQLiteStore) ListRuns(_ context.Context, _ int) ([]Run, error) {
-	return nil, errNotImplemented("ListRuns")
+// ListRuns returns the most recent runs, ordered by started_at descending.
+// Defaults to a limit of 10 if limit is 0 or negative.
+func (s *SQLiteStore) ListRuns(ctx context.Context, limit int) ([]Run, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	const query = "SELECT id, started_at, finished_at, status, message_count, error FROM runs ORDER BY started_at DESC LIMIT ?"
+	rows, err := s.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store.ListRuns: query: %w", err)
+	}
+	defer rows.Close()
+
+	var runs []Run
+	for rows.Next() {
+		var (
+			id            string
+			startedAtStr  string
+			finishedAtStr sql.NullString
+			status        string
+			messageCount  int
+			errorStr      string
+		)
+		if err := rows.Scan(&id, &startedAtStr, &finishedAtStr, &status, &messageCount, &errorStr); err != nil {
+			return nil, fmt.Errorf("store.ListRuns: scan: %w", err)
+		}
+
+		startedAt, err := parseTime(startedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("store.ListRuns: parse started_at: %w", err)
+		}
+
+		run := Run{
+			ID:           id,
+			StartedAt:    startedAt,
+			Status:       RunStatus(status),
+			MessageCount: messageCount,
+			Error:        errorStr,
+		}
+		if finishedAtStr.Valid {
+			t, err := parseTime(finishedAtStr.String)
+			if err != nil {
+				return nil, fmt.Errorf("store.ListRuns: parse finished_at: %w", err)
+			}
+			run.FinishedAt = &t
+		}
+
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store.ListRuns: rows: %w", err)
+	}
+
+	// Return empty slice instead of nil for JSON marshalling.
+	if runs == nil {
+		runs = []Run{}
+	}
+
+	return runs, nil
 }
 
-func (s *SQLiteStore) GetLastSuccessfulRunTime(_ context.Context) (*time.Time, error) {
-	return nil, errNotImplemented("GetLastSuccessfulRunTime")
+// GetLastSuccessfulRunTime returns the finished_at timestamp of the most
+// recent run with status "completed". Returns nil if no successful run exists.
+func (s *SQLiteStore) GetLastSuccessfulRunTime(ctx context.Context) (*time.Time, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	const query = "SELECT finished_at FROM runs WHERE status = 'completed' AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1"
+	row := s.db.QueryRowContext(ctx, query)
+
+	var finishedAtStr sql.NullString
+	if err := row.Scan(&finishedAtStr); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("store.GetLastSuccessfulRunTime: scan: %w", err)
+	}
+
+	if !finishedAtStr.Valid {
+		return nil, nil
+	}
+
+	t, err := parseTime(finishedAtStr.String)
+	if err != nil {
+		return nil, fmt.Errorf("store.GetLastSuccessfulRunTime: parse: %w", err)
+	}
+
+	return &t, nil
 }
 
-func (s *SQLiteStore) RecordMessage(_ context.Context, _ ProcessedMessage) error {
-	return errNotImplemented("RecordMessage")
+// ---------------------------------------------------------------------------
+// Processed messages
+// ---------------------------------------------------------------------------
+
+// RecordMessage persists a processed message record. If the message was
+// already processed (same account_label + uid), the insert is silently
+// ignored, preserving idempotency.
+func (s *SQLiteStore) RecordMessage(ctx context.Context, m ProcessedMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if m.ProcessedAt.IsZero() {
+		m.ProcessedAt = time.Now()
+	}
+
+	const query = `INSERT OR IGNORE INTO processed_messages
+		(run_id, account_label, uid, is_read, classification, digest_excerpt, processed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
+
+	isRead := 0
+	if m.IsRead {
+		isRead = 1
+	}
+
+	_, err := s.db.ExecContext(ctx, query,
+		m.RunID,
+		m.AccountLabel,
+		m.UID,
+		isRead,
+		m.Classification,
+		m.DigestExcerpt,
+		m.ProcessedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("store.RecordMessage: exec: %w", err)
+	}
+
+	return nil
 }
 
-func (s *SQLiteStore) AlreadyProcessed(_ context.Context, _ []MessageKey) (map[MessageKey]bool, error) {
-	return nil, errNotImplemented("AlreadyProcessed")
+// AlreadyProcessed checks which of the given message keys have already been
+// processed in a previous run. Returns the set of keys that exist in the
+// processed_messages table.
+func (s *SQLiteStore) AlreadyProcessed(ctx context.Context, keys []MessageKey) (map[MessageKey]bool, error) {
+	if len(keys) == 0 {
+		return map[MessageKey]bool{}, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Build a parameterised query: SELECT account_label, uid FROM
+	// processed_messages WHERE (account_label = ? AND uid = ?) OR ...
+	var builder strings.Builder
+	builder.WriteString("SELECT account_label, uid FROM processed_messages WHERE ")
+	args := make([]any, 0, len(keys)*2)
+	for i, k := range keys {
+		if i > 0 {
+			builder.WriteString(" OR ")
+		}
+		builder.WriteString("(account_label = ? AND uid = ?)")
+		args = append(args, k.AccountLabel, k.UID)
+	}
+
+	rows, err := s.db.QueryContext(ctx, builder.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("store.AlreadyProcessed: query: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[MessageKey]bool, len(keys))
+	for rows.Next() {
+		var label string
+		var uid uint32
+		if err := rows.Scan(&label, &uid); err != nil {
+			return nil, fmt.Errorf("store.AlreadyProcessed: scan: %w", err)
+		}
+		result[MessageKey{AccountLabel: label, UID: uid}] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store.AlreadyProcessed: rows: %w", err)
+	}
+
+	return result, nil
 }
 
-func (s *SQLiteStore) RecordFlag(_ context.Context, _ FlagRecord) error {
-	return errNotImplemented("RecordFlag")
+// ---------------------------------------------------------------------------
+// Flag records
+// ---------------------------------------------------------------------------
+
+// RecordFlag persists a flag application record. Duplicate flag entries for
+// the same message are silently ignored.
+func (s *SQLiteStore) RecordFlag(ctx context.Context, r FlagRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if r.AppliedAt.IsZero() {
+		r.AppliedAt = time.Now()
+	}
+
+	const query = "INSERT OR IGNORE INTO flags_applied (account_label, uid, flag, applied_at) VALUES (?, ?, ?, ?)"
+	_, err := s.db.ExecContext(ctx, query,
+		r.AccountLabel,
+		r.UID,
+		r.Flag,
+		r.AppliedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("store.RecordFlag: exec: %w", err)
+	}
+
+	return nil
 }
 
-func (s *SQLiteStore) RecordDigest(_ context.Context, _ DigestRecord) error {
-	return errNotImplemented("RecordDigest")
+// ---------------------------------------------------------------------------
+// Digest records
+// ---------------------------------------------------------------------------
+
+// RecordDigest persists a digest delivery record.
+func (s *SQLiteStore) RecordDigest(ctx context.Context, d DigestRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	const query = "INSERT INTO digests (run_id, channel, status, payload_hash) VALUES (?, ?, ?, ?)"
+	_, err := s.db.ExecContext(ctx, query,
+		d.RunID,
+		d.Channel,
+		d.Status,
+		d.PayloadHash,
+	)
+	if err != nil {
+		return fmt.Errorf("store.RecordDigest: exec: %w", err)
+	}
+
+	return nil
 }
 
-// errNotImplemented returns a sentinel error for methods that are not yet
-// implemented. Callers can use errors.Is to detect these stubs.
-func errNotImplemented(method string) error {
-	return fmt.Errorf("store.%s: %w", method, ErrNotImplemented)
+// ---------------------------------------------------------------------------
+// Sentinels
+// ---------------------------------------------------------------------------
+
+// ErrRunNotFound is returned when a run ID is not found in the store.
+var ErrRunNotFound = errors.New("run not found")
+
+// parseTime parses a timestamp string as stored by modernc.org/sqlite.
+// The driver stores time.Time as "2006-01-02 15:04:05.999999999 -0700 -07"
+// optionally followed by a monotonic clock suffix like " m=+0.013361351".
+// The monotonic suffix is stripped before parsing.
+func parseTime(s string) (time.Time, error) {
+	// Strip the monotonic clock suffix if present.
+	if idx := strings.Index(s, " m="); idx >= 0 {
+		s = s[:idx]
+	}
+
+	formats := []string{
+		"2006-01-02 15:04:05.999999999 -0700 -07",
+		"2006-01-02 15:04:05.999999999 -0700",
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05.999999999Z07:00",
+		"2006-01-02T15:04:05Z07:00",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("parse time %q: no matching format", s)
 }
 
-// ErrNotImplemented is returned by stub methods of SQLiteStore.
-var ErrNotImplemented = errors.New("not implemented")
+// generateID produces a random hex ID suitable for use as a run identifier.
+func generateID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
