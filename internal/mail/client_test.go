@@ -47,15 +47,25 @@ func TestIMAPClient_Fetch_Panics(t *testing.T) {
 	_, _ = c.Fetch(context.Background(), dummyAccount(), FetchOptions{})
 }
 
-func TestIMAPClient_ApplyFlags_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic from unimplemented ApplyFlags")
-		}
-	}()
-
+func TestIMAPClient_ApplyFlags_NotConnected(t *testing.T) {
 	c := NewIMAPClient()
-	_ = c.ApplyFlags(context.Background(), dummyAccount(), nil)
+
+	err := c.ApplyFlags(context.Background(), dummyAccount(), []Flag{
+		{Key: MessageKey{AccountLabel: "test", UID: 1}, Keyword: "Useful"},
+	})
+	if err == nil {
+		t.Fatal("expected error from ApplyFlags when not connected")
+	}
+}
+
+func TestIMAPClient_ApplyFlags_EmptyFlags(t *testing.T) {
+	c := NewIMAPClient()
+
+	// Empty flags should not error, even without a connection.
+	err := c.ApplyFlags(context.Background(), dummyAccount(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // dummyAccount returns a minimal IMAPAccount for use in unit tests that

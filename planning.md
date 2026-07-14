@@ -128,10 +128,10 @@ Legend:
 - [x] 7.6 Add integration test with `go-imap` mock server verifying "all emails" fetch returns read and unread messages.
 
 ### Branch: `feat/imap-fetch-and-flag`
-- [ ] 7.7 Implement `fetchBody(ctx, uidset)` and `readBody(part io.Reader, contentType string) (string, []AttachmentMeta, error)`.
-- [ ] 7.8 Add unit tests for `readBody` with multipart fixtures.
-- [ ] 7.9 Implement `applyFlags(ctx, uidset, flags)` using `UID STORE` with plain keywords. Implement `Close()`.
-- [ ] 7.10 Add unit tests for `applyFlags` flag mapping.
+- [x] 7.7 Implement `fetchBody(ctx, uidset)` and `readBody(part io.Reader, contentType string) (string, []AttachmentMeta, error)`.
+- [x] 7.8 Add unit tests for `readBody` with multipart fixtures.
+- [x] 7.9 Implement `applyFlags(ctx, uidset, flags)` using `UID STORE` with plain keywords. Implement `Close()`.
+- [x] 7.10 Add unit tests for `applyFlags` flag mapping.
 
 ## Phase 8 — Mail Concurrency
 

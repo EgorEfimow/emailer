@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 
 	"github.com/egorefimow/emailer/internal/config"
+	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 )
 
@@ -92,7 +94,46 @@ func (c *IMAPClient) Fetch(ctx context.Context, account config.IMAPAccount, opts
 }
 
 // ApplyFlags sets IMAP keyword flags on the specified messages.
+//
+// Flags are written as plain IMAP keywords (no backslash prefix) via
+// UID STORE. Errors for individual keyword groups are collected and
+// returned as a single error — the method does not abort on partial
+// failures.
 func (c *IMAPClient) ApplyFlags(ctx context.Context, account config.IMAPAccount, flags []Flag) error {
-	// TODO: implement in step 7.9
-	panic("not implemented")
+	// Empty flags is a no-op, even without a connection.
+	if len(flags) == 0 {
+		return nil
+	}
+	if c.cli == nil {
+		return fmt.Errorf("imap.apply_flags: not connected")
+	}
+
+	// Select INBOX in read-write mode (must not be read-only to modify flags).
+	// TODO: support per-folder flag application when folder info is added to Flag.
+	if _, err := c.selectFolder(ctx, "INBOX", false); err != nil {
+		return fmt.Errorf("imap.apply_flags.select: %w", err)
+	}
+
+	// Group flags by keyword for efficient IMAP calls.
+	byKeyword := make(map[string][]uint32)
+	for _, f := range flags {
+		byKeyword[f.Keyword] = append(byKeyword[f.Keyword], f.Key.UID)
+	}
+
+	var errs []string
+	for keyword, uids := range byKeyword {
+		seqset := new(imap.SeqSet)
+		seqset.AddNum(uids...)
+
+		if err := c.cli.UidStore(seqset, imap.AddFlags, []interface{}{keyword}, nil); err != nil {
+			errs = append(errs, fmt.Sprintf("keyword %q on %d UIDs: %v", keyword, len(uids), err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("imap.apply_flags: %d/%d groups failed: %s",
+			len(errs), len(byKeyword), strings.Join(errs, "; "))
+	}
+
+	return nil
 }
