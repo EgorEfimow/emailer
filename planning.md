@@ -69,10 +69,10 @@ Legend:
 ## Phase 3 — Shutdown and Context
 
 ### Branch: `feat/shutdown-context`
-- [ ] 3.1 Create `internal/shutdown` package. Implement `ContextWithSignal(parent context.Context, signals ...os.Signal) (context.Context, func())`.
-- [ ] 3.2 Add unit tests for `ContextWithSignal` with fake signals.
-- [ ] 3.3 Implement `WaitForDrain(ctx, timeout, wg)` helper.
-- [ ] 3.4 Add unit tests for `WaitForDrain`.
+- [x] 3.1 Create `internal/shutdown` package. Implement `ContextWithSignal(parent context.Context, signals ...os.Signal) (context.Context, func())`.
+- [x] 3.2 Add unit tests for `ContextWithSignal` with fake signals.
+- [x] 3.3 Implement `WaitForDrain(ctx, timeout, wg)` helper.
+- [x] 3.4 Add unit tests for `WaitForDrain`.
 
 ## Phase 4 — State Store
 
