@@ -120,12 +120,12 @@ Legend:
 ## Phase 7 — Mail IMAP Adapter
 
 ### Branch: `feat/imap-core`
-- [ ] 7.1 Add dependency `github.com/emersion/go-imap/v15` and `github.com/emersion/go-message`. Define `Ingester` interface and `FetchOptions`.
-- [ ] 7.2 Implement `IMAPClient` struct, `dial(ctx, account)` with TLS/STARTTLS/plaintext, and `login(ctx, account)` using app passwords.
-- [ ] 7.3 Implement `selectFolder` and `searchByWindow(ctx, since, unreadOnly)`.
-- [ ] 7.4 Add unit tests for IMAP search criteria generation (verify `UNSEEN` flag is conditionally added).
-- [ ] 7.5 Implement `fetchHeaders(ctx, uidset)` returning envelopes and `\Seen` flag status.
-- [ ] 7.6 Add integration test with `go-imap` mock server verifying "all emails" fetch returns read and unread messages.
+- [x] 7.1 Add dependency `github.com/emersion/go-imap/v2` and `github.com/emersion/go-message`. Define `Ingester` interface and `FetchOptions`.
+- [x] 7.2 Implement `IMAPClient` struct, `dial(ctx, account)` with TLS/STARTTLS/plaintext, and `login(ctx, account)` using app passwords.
+- [x] 7.3 Implement `selectFolder` and `searchByWindow(ctx, since, unreadOnly)`.
+- [x] 7.4 Add unit tests for IMAP search criteria generation (verify `UNSEEN` flag is conditionally added).
+- [x] 7.5 Implement `fetchHeaders(ctx, uidset)` returning envelopes and `\Seen` flag status.
+- [x] 7.6 Add integration test with `go-imap` mock server verifying "all emails" fetch returns read and unread messages.
 
 ### Branch: `feat/imap-fetch-and-flag`
 - [ ] 7.7 Implement `fetchBody(ctx, uidset)` and `readBody(part io.Reader, contentType string) (string, []AttachmentMeta, error)`.
@@ -170,14 +170,6 @@ Legend:
 - [ ] 13.2 Implement response unmarshaling and token usage extraction.
 - [ ] 13.3 Add HTTP fixture under `testdata/gemini/` and contract tests using `httptest.Server`.
 - [ ] 13.4 Add test for API key in header (not URL) and retryable status codes.
-
-## Phase 16 — Security Hardening
-
-### Branch: `feat/security-hardening`
-- [ ] 16.1 Create `internal/security` package. Implement `WrapEmailContent` and `IsolateInstructions`.
-- [ ] 16.2 Add unit tests for delimiter injection resistance.
-- [ ] 16.3 Implement `SanitizeOutput(raw string) string`.
-- [ ] 16.4 Add unit tests for output sanitization.
 
 ## Phase 17 — Digest Renderers
 
