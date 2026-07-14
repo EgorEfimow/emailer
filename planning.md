@@ -136,32 +136,32 @@ Legend:
 ## Phase 8 — Mail Concurrency
 
 ### Branch: `feat/mail-concurrency`
-- [ ] 8.1 Create `internal/mail/pool.go`. Implement `FetchAll` using `errgroup` with bounded semaphore.
-- [ ] 8.2 Add unit tests with fake `Ingester` implementations (one account fails, others succeed).
-- [ ] 8.3 Add unit test: context cancelled mid-fetch.
+- [x] 8.1 Create `internal/mail/pool.go`. Implement `FetchAll` using `errgroup` with bounded semaphore.
+- [x] 8.2 Add unit tests with fake `Ingester` implementations (one account fails, others succeed).
+- [x] 8.3 Add unit test: context cancelled mid-fetch.
 
 ## Phase 9 — LLM Models
 
 ### Branch: `feat/llm-models`
-- [ ] 9.1 Create `internal/llm` package. Define `Request`, `InputMessage`, `Response`, and `Provider` interface.
-- [ ] 9.2 Define `ProviderRegistry` type. Implement `Register` and `Lookup`.
-- [ ] 9.3 Add unit tests for registry behavior.
+- [x] 9.1 Create `internal/llm` package. Define `Request`, `InputMessage`, `Response`, and `Provider` interface.
+- [x] 9.2 Define `ProviderRegistry` type. Implement `Register` and `Lookup`.
+- [x] 9.3 Add unit tests for registry behavior.
 
 ## Phase 10 — Prompt Engineering
 
 ### Branch: `feat/prompt-engineering`
-- [ ] 10.1 Create `internal/llm/prompt.go`. Define `BuildPrompt(req Request) (string, error)` using `text/template`.
-- [ ] 10.2 Add unit tests for prompt structure (delimiters, metadata, schema).
-- [ ] 10.3 Add unit tests for template injection (template values are escaped).
+- [x] 10.1 Create `internal/llm/prompt.go`. Define `BuildPrompt(req Request) (string, error)` using `text/template`.
+- [x] 10.2 Add unit tests for prompt structure (delimiters, metadata, schema).
+- [x] 10.3 Add unit tests for template injection (template values are escaped).
 
 ## Phase 11 — Response Parsing
 
 ### Branch: `feat/response-parsing`
-- [ ] 11.1 Create `internal/llm/parse.go`. Implement `ParseResponse` stripping fences and validating JSON against schema.
-- [ ] 11.2 Add unit tests for valid response parsing.
-- [ ] 11.3 Add unit tests for each rejection case (unknown classifications, duplicate keys, missing keys).
-- [ ] 11.4 Implement `RepairWithPrompt(raw, err) (string, error)`.
-- [ ] 11.5 Add unit tests for `RepairWithPrompt`.
+- [x] 11.1 Create `internal/llm/parse.go`. Implement `ParseResponse` stripping fences and validating JSON against schema.
+- [x] 11.2 Add unit tests for valid response parsing.
+- [x] 11.3 Add unit tests for each rejection case (unknown classifications, duplicate keys, missing keys).
+- [x] 11.4 Implement `RepairWithPrompt(raw, err) (string, error)`.
+- [x] 11.5 Add unit tests for `RepairWithPrompt`.
 
 ## Phase 13 — LLM Gemini Adapter
 
