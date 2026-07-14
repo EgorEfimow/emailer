@@ -29,12 +29,12 @@ Legend:
 ## Phase 1 — Logging Foundation
 
 ### Branch: `feat/logging`
-- [ ] 1.1 Create `internal/log` package and implement `NewLogger(w io.Writer, level string, opts ...Option) (*slog.Logger, error)`.
-- [ ] 1.2 Add unit tests for `NewLogger` level parsing.
-- [ ] 1.3 Add `WithRunID(logger, runID)` helper.
-- [ ] 1.4 Add unit tests for run-id injection.
-- [ ] 1.5 Add `WithSecretRedaction(logger, patterns []regexp.Regexp)` helper and `Sensitive` type wrapper.
-- [ ] 1.6 Add unit tests for secret redaction.
+- [x] 1.1 Create `internal/log` package and implement `NewLogger(w io.Writer, level string, opts ...Option) (*slog.Logger, error)`.
+- [x] 1.2 Add unit tests for `NewLogger` level parsing.
+- [x] 1.3 Add `WithRunID(logger, runID)` helper.
+- [x] 1.4 Add unit tests for run-id injection.
+- [x] 1.5 Add `WithSecretRedaction(logger, patterns []regexp.Regexp)` helper and `Sensitive` type wrapper.
+- [x] 1.6 Add unit tests for secret redaction.
 
 ## Phase 2 — Configuration Core
 
