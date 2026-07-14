@@ -1,0 +1,41 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.a
+go.work
+go.work.sum
+
+# Build artifacts
+bin/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets and configuration
+.env
+.env.local
+.env.*.local
+
+# State directory
+state/
+*.db
+*.sqlite
+
+# Test
+coverage.out
+testlog/*

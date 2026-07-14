@@ -1,0 +1,12 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "allowlist for standard go file"
+  paths = [
+    '''\.gitignore''',
+    '''go\.mod''',
+    '''go\.sum''',
+  ]
