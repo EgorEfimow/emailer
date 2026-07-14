@@ -39,9 +39,9 @@ Legend:
 ## Phase 2 — Configuration Core
 
 ### Branch: `feat/config-structs-and-defaults`
-- [ ] 2.1 Create `internal/config` package. Define `Config` struct with all sections from `architecture.md` §5.1 as nested structs. Tag every secret field with `sensitive:"true"`.
-- [ ] 2.2 Implement `defaults.go` with all default values (including `MaxWindow=72h`, `FetchUnreadOnly=false`).
-- [ ] 2.3 Add unit tests for defaults and struct loading.
+- [x] 2.1 Create `internal/config` package. Define `Config` struct with all sections from `architecture.md` §5.1 as nested structs. Tag every secret field with `sensitive:"true"`.
+- [x] 2.2 Implement `defaults.go` with all default values (including `MaxWindow=72h`, `FetchUnreadOnly=false`).
+- [x] 2.3 Add unit tests for defaults and struct loading.
 
 ### Branch: `feat/config-loaders`
 - [ ] 2.4 Implement env loader `loadEnv(cfg *Config) error` using `os.LookupEnv`.
