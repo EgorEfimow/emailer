@@ -55,16 +55,16 @@ Legend:
 - [x] 2.12 Add unit tests for precedence ordering.
 
 ### Branch: `feat/config-validation`
-- [ ] 2.13 Implement `Validate(cfg Config) error` with full validation.
-- [ ] 2.14 Add `IMAPAccount` validation (label, host, port range, username, password).
-- [ ] 2.15 Add unit tests for `IMAPAccount` validation.
-- [ ] 2.16 Add `LLMConfig` and `NotifyConfig` validation.
-- [ ] 2.17 Add unit tests for `LLMConfig` and `NotifyConfig` validation.
-- [ ] 2.18 Add `StorageConfig`, `LabelsConfig`, `PromptConfig`, and `ConcurrencyConfig` validation.
-- [ ] 2.19 Add unit tests for `Storage`, `Labels`, `Prompt`, and `Concurrency` validation.
-- [ ] 2.20 Implement `SecretRedactionPatterns(cfg Config) []regexp.Regexp`.
-- [ ] 2.21 Add unit tests for missing required fields and malformed inputs.
-- [ ] 2.22 Add `.env.example` and `config.example.yaml`.
+- [x] 2.13 Implement `Validate(cfg Config) error` with full validation.
+- [x] 2.14 Add `IMAPAccount` validation (label, host, port range, username, password).
+- [x] 2.15 Add unit tests for `IMAPAccount` validation.
+- [x] 2.16 Add `LLMConfig` and `NotifyConfig` validation.
+- [x] 2.17 Add unit tests for `LLMConfig` and `NotifyConfig` validation.
+- [x] 2.18 Add `StorageConfig`, `LabelsConfig`, `PromptConfig`, and `ConcurrencyConfig` validation.
+- [x] 2.19 Add unit tests for `Storage`, `Labels`, `Prompt`, and `Concurrency` validation.
+- [x] 2.20 Implement `SecretRedactionPatterns(cfg Config) []regexp.Regexp`.
+- [x] 2.21 Add unit tests for missing required fields and malformed inputs.
+- [x] 2.22 Add `.env.example` and `config.example.yaml`.
 
 ## Phase 3 — Shutdown and Context
 

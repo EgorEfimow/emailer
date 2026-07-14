@@ -1,0 +1,100 @@
+# =============================================================================
+# Email AI Agent — Example YAML Configuration
+# =============================================================================
+# Copy this file to config.yaml and fill in your values.  The binary reads
+# it via --config:
+#
+#   ./emailer --config config.yaml
+#
+# All keys are optional — omitted keys use defaults or env var overrides.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# LLM Provider
+# ---------------------------------------------------------------------------
+llm:
+  provider: gemini                # one of: gemini, ollama, openrouter
+  api_key: "your-api-key-here"    # 🔒 secret — redacted in logs
+  model: gemini-2.0-flash
+  # endpoint: ""                  # optional provider URL override
+  timeout: 120s
+  max_retries: 3
+  max_concurrent: 4
+
+# ---------------------------------------------------------------------------
+# IMAP Accounts
+# ---------------------------------------------------------------------------
+imap:
+  accounts:
+    - label: work                 # unique identifier, used in dedup key
+      host: imap.example.com
+      port: 993                   # 0 = default 993 (IMAPS)
+      username: user@example.com
+      password: "your-app-password"   # 🔒 secret — redacted in logs
+      folders:
+        - INBOX
+      use_tls: true
+
+    # - label: personal
+    #   host: imap.personal.com
+    #   port: 993
+    #   username: me@personal.com
+    #   password: "another-app-password"
+    #   folders:
+    #     - INBOX
+    #   use_tls: true
+
+# ---------------------------------------------------------------------------
+# Notification (Telegram)
+# ---------------------------------------------------------------------------
+notify:
+  telegram:
+    bot_token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"  # 🔒 secret
+    chat_id: -1001234567890
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+storage:
+  state_path: ./state/emailer.db  # SQLite database path
+  # stateless: false              # set true + fetch_unread_only=true for
+                                  # one-shot runs with no persistence
+
+# ---------------------------------------------------------------------------
+# Fetch Behaviour
+# ---------------------------------------------------------------------------
+fetch_unread_only: false          # false = fetch all messages in time window
+max_window: 72h                   # caps dynamic lookback after host downtime
+
+# ---------------------------------------------------------------------------
+# Digest Rendering
+# ---------------------------------------------------------------------------
+digest:
+  max_message_excerpt: 500        # characters per message in digest
+  include_read_status: true       # show read/unread badge per message
+
+# ---------------------------------------------------------------------------
+# Classification Labels
+# ---------------------------------------------------------------------------
+# Custom labels beyond the built-in defaults: Useful, ToDelete, Ads.
+labels:
+  custom: []
+  # custom:
+  #   - Urgent
+  #   - Reference
+
+# ---------------------------------------------------------------------------
+# Prompt Templates
+# ---------------------------------------------------------------------------
+# Optional overrides for the built-in default prompts.  Leave empty to
+# use the built-in templates.
+prompts:
+  classification_prompt: ""       # overrides default classification prompt
+  system_prompt: ""               # overrides default system prompt
+
+# ---------------------------------------------------------------------------
+# Concurrency
+# ---------------------------------------------------------------------------
+concurrency:
+  max_accounts: 4                 # IMAP accounts fetched concurrently
+  max_llm_calls: 4                # simultaneous LLM provider calls
