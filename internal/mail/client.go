@@ -90,7 +90,97 @@ func (c *IMAPClient) Close() error {
 // Fetch retrieves messages from the account's folders within the fetch window.
 func (c *IMAPClient) Fetch(ctx context.Context, account config.IMAPAccount, opts FetchOptions) ([]Message, error) {
 	// TODO: implement in steps 7.3–7.7
-	panic("not implemented")
+
+	if c.cli == nil {
+		return nil, fmt.Errorf("imap.fetch: not connected")
+	}
+
+	folders := opts.Folders
+	if len(folders) == 0 {
+		folders = account.Folders
+	}
+	if len(folders) == 0 {
+		folders = []string{"INBOX"}
+	}
+
+	messages := make([]Message, 0)
+	var errs []string
+	for _, folder := range folders {
+		select {
+		case <-ctx.Done():
+			return messages, fmt.Errorf("imap.fetch: %w", ctx.Err())
+		default:
+		}
+
+		folderMessages, err := c.fetchFolder(ctx, account, folder, opts)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("folder %q: %v", folder, err))
+			continue
+		}
+		messages = append(messages, folderMessages...)
+	}
+
+	if len(errs) > 0 {
+		return messages, fmt.Errorf("imap.fetch: %d/%d folders failed: %s", len(errs), len(folders), strings.Join(errs, "; "))
+	}
+
+	return messages, nil
+}
+
+func (c *IMAPClient) fetchFolder(ctx context.Context, account config.IMAPAccount, folder string, opts FetchOptions) ([]Message, error) {
+	if _, err := c.selectFolder(ctx, folder, true); err != nil {
+		return nil, err
+	}
+
+	uids, err := c.searchByWindow(ctx, opts.Since, opts.FetchUnreadOnly)
+	if err != nil {
+		return nil, err
+	}
+	if len(uids) == 0 {
+		return nil, nil
+	}
+
+	headers, err := c.fetchHeaders(ctx, uids)
+	if err != nil {
+		return nil, err
+	}
+
+	bodies, bodyErr := c.fetchBody(ctx, uids)
+
+	messages := make([]Message, 0, len(headers))
+	for _, header := range headers {
+		if header == nil {
+			continue
+		}
+
+		msg := Message{
+			AccountLabel: account.Label,
+			UID:          header.Uid,
+			Folder:       folder,
+			Date:         header.InternalDate,
+			IsRead:       isRead(header.Flags),
+		}
+		if header.Envelope != nil {
+			msg.Subject = header.Envelope.Subject
+			msg.From = formatAddressList(header.Envelope.From)
+			msg.To = formatAddressList(header.Envelope.To)
+			if !header.Envelope.Date.IsZero() {
+				msg.Date = header.Envelope.Date
+			}
+		}
+		if body, ok := bodies[header.Uid]; ok {
+			msg.Body = body.Body
+			msg.Attachments = body.Attachments
+		}
+
+		messages = append(messages, msg)
+	}
+
+	if bodyErr != nil {
+		return messages, bodyErr
+	}
+	return messages, nil
+
 }
 
 // ApplyFlags sets IMAP keyword flags on the specified messages.

@@ -41,7 +41,8 @@ func (c *IMAPClient) fetchBody(ctx context.Context, uids []uint32) (map[uint32]B
 
 	// BODY.PEEK[] — fetch the full message without setting \Seen.
 	bodySection := &imap.BodySectionName{Peek: true}
-	items := []imap.FetchItem{bodySection.FetchItem()}
+	// items := []imap.FetchItem{bodySection.FetchItem()}
+	items := []imap.FetchItem{imap.FetchUid, bodySection.FetchItem()}
 
 	ch := make(chan *imap.Message, 10)
 	done := make(chan error, 1)
