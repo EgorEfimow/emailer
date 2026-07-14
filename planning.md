@@ -108,14 +108,14 @@ Legend:
 ## Phase 6 — Mail Sanitization
 
 ### Branch: `feat/mail-sanitization`
-- [ ] 6.1 Create `internal/mail/sanitize.go`. Implement `StripHTML(s string) string` with state machine.
-- [ ] 6.2 Add unit tests for HTML stripping edge cases.
-- [ ] 6.3 Implement `StripControlChars` and `DecodeEntities`.
-- [ ] 6.4 Add unit tests for entity decoding and control chars.
-- [ ] 6.5 Implement `ConvertCharset(r io.Reader, contentType string) (string, error)`.
-- [ ] 6.6 Add unit tests for charset conversion (ISO-8859-1, KOI8-R, Shift-JIS).
-- [ ] 6.7 Implement `Truncate(s string, limit int) string` rune-aware.
-- [ ] 6.8 Add unit tests for truncation.
+- [x] 6.1 Create `internal/mail/sanitize.go`. Implement `StripHTML(s string) string` with state machine.
+- [x] 6.2 Add unit tests for HTML stripping edge cases.
+- [x] 6.3 Implement `StripControlChars` and `DecodeEntities`.
+- [x] 6.4 Add unit tests for entity decoding and control chars.
+- [x] 6.5 Implement `ConvertCharset(r io.Reader, contentType string) (string, error)`.
+- [x] 6.6 Add unit tests for charset conversion (ISO-8859-1, KOI8-R, Shift-JIS).
+- [x] 6.7 Implement `Truncate(s string, limit int) string` rune-aware.
+- [x] 6.8 Add unit tests for truncation.
 
 ## Phase 7 — Mail IMAP Adapter
 
