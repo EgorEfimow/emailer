@@ -1,0 +1,40 @@
+# Email AI Agent — systemd Timer Unit
+#
+# Runs emailer 4 times per day (every 6 hours) at staggered times to
+# distribute load across the hour.
+#
+# Install:
+#   sudo cp emailer.service emailer.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now emailer.timer
+#
+# Inspect:
+#   sudo systemctl status emailer.timer
+#   sudo journalctl -u emailer.service -f
+#
+# To trigger a run immediately without waiting for the timer:
+#   sudo systemctl start emailer
+
+[Unit]
+Description=Email AI Agent — daily mail classification (4×/day)
+Documentation=https://github.com/egorefimow/emailer
+Requires=emailer.service
+
+[Timer]
+# Runs at 02:00, 08:00, 14:00, 20:00 daily
+OnCalendar=*-*-* 02:00:00
+OnCalendar=*-*-* 08:00:00
+OnCalendar=*-*-* 14:00:00
+OnCalendar=*-*-* 20:00:00
+
+# Add jitter to avoid thundering-herd on shared infrastructure
+RandomizedDelaySec=5min
+
+# Persist missed runs on boot (e.g., if host was off at 08:00)
+Persistent=true
+
+# Accuracy
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

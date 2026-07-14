@@ -213,15 +213,31 @@ internal/
 
 - **Execution:** `cmd/emailer` one-shot binary.
 - **Scheduling:** Managed entirely by the host OS (e.g., `systemd.timer`, `cron`). 
+  - systemd service and timer units are provided in `deploy/systemd/`.
+  - See `deploy/README.md` for setup instructions.
 - **Docker (Optional):** A simple `Dockerfile` is provided for containerized environments, but native binary execution is the primary target.
 
-## 12. Testing Strategy
+## 12. Documentation
+
+Project documentation is located in the repository root and `docs/` directory:
+
+- `README.md` — Quickstart and overview.
+- `docs/configuration.md` — Full configuration reference with all options.
+- `docs/providers.md` — LLM provider setup (Gemini, Ollama, OpenRouter).
+- `docs/security.md` — Threat model and security practices.
+- `docs/troubleshooting.md` — Common issues and solutions.
+- `deploy/README.md` — systemd timer and cron deployment guide.
+- `architecture.md` — This document: architectural overview.
+- `CLAUDE.md` — Project operating manual for coding agents.
+- `planning.md` — Implementation plan with step-by-step progress.
+
+## 13. Testing Strategy
 
 - Unit tests per package with fakes from `internal/testutil`.
 - Integration tests with a mock IMAP server.
 - Contract tests per LLM provider using recorded HTTP fixtures.
 
-## 13. Known Limitations
+## 14. Known Limitations
 
 - No multi-tenant isolation (single user assumed).
 - No interactive classification correction UI.

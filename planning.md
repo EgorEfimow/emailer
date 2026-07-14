@@ -207,10 +207,10 @@ Legend:
 ## Phase 20 — CLI Entrypoint
 
 ### Branch: `feat/cli-entrypoint`
-- [ ] 20.1 Create `cmd/emailer/main.go`. Parse CLI flags (`--config`, `--stateless`, `--dry-run`, `--force-reprocess`, `--window`, `--max-window`, `--log-level`).
-- [ ] 20.2 Load config, set up logger, signal context, and store.
-- [ ] 20.3 Build dependencies, run orchestrator, map exit codes.
-- [ ] 20.4 Add smoke test invoking the binary with `--help`.
+- [x] 20.1 Create `cmd/emailer/main.go` — flag parsing, config loading, logger, store. Main flags: `--config`, `--log-level`, `--dry-run`, `--force-reprocess`, `--window`. Other flags delegated to `config.Load`.
+- [x] 20.2 Build dependencies: IMAP ingesters, LLM provider (via registry), renderers, notification channel (via registry). Run orchestrator.
+- [x] 20.3 Exit code mapping: 0=success, 1=fatal error, 2=config/flag error, 130=cancelled.
+- [x] 20.4 Smoke test: `--help` prints usage and exits 2; no config exits 2 with validation errors.
 
 ## Phase 21 — Docker (Optional)
 
@@ -221,17 +221,17 @@ Legend:
 ## Phase 22 — Deployment Manifests
 
 ### Branch: `docs/deployment-manifests`
-- [ ] 22.1 Add `deploy/systemd/emailer.service` and `.timer`.
-- [ ] 22.2 Add `deploy/README.md` explaining how to set up OS-level scheduling.
+- [x] 22.1 Add `deploy/systemd/emailer.service` and `.timer`.
+- [x] 22.2 Add `deploy/README.md` explaining how to set up OS-level scheduling.
 
 ## Phase 23 — Documentation
 
 ### Branch: `docs/user-documentation`
-- [ ] 23.1 Write `README.md` with quickstart.
-- [ ] 23.2 Write `docs/configuration.md` with every option.
-- [ ] 23.3 Write `docs/providers.md` with provider setup.
-- [ ] 23.4 Write `docs/security.md` with threat model.
-- [ ] 23.5 Write `docs/troubleshooting.md`.
+- [x] 23.1 Write `README.md` with quickstart.
+- [x] 23.2 Write `docs/configuration.md` with every option.
+- [x] 23.3 Write `docs/providers.md` with provider setup.
+- [x] 23.4 Write `docs/security.md` with threat model.
+- [x] 23.5 Write `docs/troubleshooting.md`.
 
 ## Phase 24 — Hardening and Final Audit
 

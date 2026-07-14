@@ -1,0 +1,59 @@
+# Email AI Agent — systemd Service Unit
+#
+# Install:
+#   sudo cp emailer.service /etc/systemd/system/emailer.service
+#   sudo systemctl daemon-reload
+#
+# The service file is used by emailer.timer (see emailer.timer).
+# It can also be started manually:
+#   sudo systemctl start emailer
+#
+# Requires a valid config file at /etc/emailer/config.yaml (adjust ExecStart
+# to match your config path).
+
+[Unit]
+Description=Email AI Agent — ingest, classify, flag, and digest IMAP mail
+Documentation=https://github.com/egorefimow/emailer
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+
+# Path to the binary. Adjust if installed elsewhere.
+ExecStart=/usr/local/bin/emailer --config /etc/emailer/config.yaml
+
+# Secure execution environment
+User=emailer
+Group=emailer
+StateDirectory=emailer
+StateDirectoryMode=0700
+RuntimeDirectory=emailer
+RuntimeDirectoryMode=0700
+
+# Resource limits
+CPUQuota=50%
+MemoryMax=256M
+
+# Sandboxing (systemd 240+)
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
