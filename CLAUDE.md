@@ -7,7 +7,7 @@ agent) must operate inside this repository. Read it before touching code.
 
 - **Name**: Email AI Agent (`emailer`).
 - **Language**: Go 1.25+.
-- **Domain**: scheduled ingestion of unread IMAP mail, LLM classification,
+- **Domain**: scheduled ingestion of read IMAP mail, LLM classification,
   IMAP keyword flagging, digest delivery to Telegram.
 - **Execution Model**: One-shot CLI binary executed by OS schedulers (cron, systemd). No long-running server, no HTTP API, no Webhooks.
 - **No code is written in this document.** This is policy only.
@@ -136,8 +136,11 @@ packages without updating `architecture.md` first.
 
 ## 13. Document Maintenance
 
+- Work through `planning.md` one sub-step at a time (e.g., 2.1, then 2.2). Do not batch multiple sub-steps unless explicitly asked.
+- **Session Start**: At the start of a new session, read `planning.md` to find the first unchecked `[ ]` step. Read the relevant section(s) of `architecture.md` for that step's phase. If the step depends on earlier `[x]` steps, spot-check that the code still matches what's documented before proceeding — do not assume a prior session's checkmark is still accurate.
 - Any architectural change updates `architecture.md` in the same PR.
 - Any new task or milestone updates `planning.md` in the same PR.
+- Any completed sub-step is marked `[x]` in `planning.md` in the same commit.
 - Any new operating rule updates this file (`CLAUDE.md`) in the same PR.
 - Documents are code: review them, lint them, version them.
 - **Drift Prevention**: The biggest structural risk is documentation drifting from code. If a PR removes a feature (e.g., removing an HTTP server), the PR MUST search all three `.md` files for references to that feature and remove/update them. Partial cuts are not allowed.

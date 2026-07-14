@@ -1,0 +1,11 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        description: Detect secrets in code
+        entry: gitleaks protect --redact --verbose --config=gitleaks.toml
+        language: docker
+        pass_filenames: false
+        minimum_pre_commit_version: 2.22.0
