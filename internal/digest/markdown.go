@@ -1,0 +1,175 @@
+package digest
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"text/template"
+	"time"
+)
+
+// ---------------------------------------------------------------------------
+// MarkdownRenderer
+// ---------------------------------------------------------------------------
+
+// MarkdownRenderer renders digest data as Markdown using configurable
+// templates. It explicitly renders the Date and Read/Unread status for
+// each message.
+type MarkdownRenderer struct {
+	// IncludeReadStatus controls whether the read/unread badge is shown.
+	IncludeReadStatus bool
+
+	// MaxMessageExcerpt limits the excerpt length in characters.
+	MaxMessageExcerpt int
+}
+
+// compile-time check: *MarkdownRenderer satisfies Renderer.
+var _ Renderer = (*MarkdownRenderer)(nil)
+
+// NewMarkdownRenderer creates a new MarkdownRenderer with the given options.
+func NewMarkdownRenderer(includeReadStatus bool, maxMessageExcerpt int) *MarkdownRenderer {
+	return &MarkdownRenderer{
+		IncludeReadStatus: includeReadStatus,
+		MaxMessageExcerpt: maxMessageExcerpt,
+	}
+}
+
+// Name returns "markdown".
+func (r *MarkdownRenderer) Name() string {
+	return "markdown"
+}
+
+// Render produces a Markdown digest from the provided data.
+func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, error) {
+	tmpl, err := template.New("digest").
+		Funcs(template.FuncMap{
+			"formatTime": formatTime,
+			"readBadge":  r.readBadge,
+			"truncate":   r.truncate,
+			"joinLabels": joinLabels,
+			"add1":       func(n int) int { return n + 1 },
+			"mul":        func(a, b float64) float64 { return a * b },
+			"now":        time.Now,
+		}).
+		Parse(markdownTemplate)
+	if err != nil {
+		return "", fmt.Errorf("digest.markdown.parse_template: %w", err)
+	}
+
+	// Group messages by classification label.
+	groups := groupByLabel(data.Messages)
+	// Sort groups alphabetically for consistent output.
+	labels := make([]string, 0, len(groups))
+	for l := range groups {
+		labels = append(labels, l)
+	}
+	sort.Strings(labels)
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, map[string]any{
+		"RunID":        data.RunID,
+		"GeneratedAt":  data.GeneratedAt,
+		"AccountLabel": data.AccountLabel,
+		"TotalFetched": data.TotalFetched,
+		"TotalClassified": data.TotalClassified,
+		"FailedCount":  data.FailedCount,
+		"Groups":       groups,
+		"Labels":       labels,
+		"TotalMessages": len(data.Messages),
+		"IncludeReadStatus": r.IncludeReadStatus,
+	}); err != nil {
+		return "", fmt.Errorf("digest.markdown.execute: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// readBadge returns a short string indicating the read/unread status.
+func (r *MarkdownRenderer) readBadge(isRead bool) string {
+	if !r.IncludeReadStatus {
+		return ""
+	}
+	if isRead {
+		return "✅ Read"
+	}
+	return "🆕 Unread"
+}
+
+// truncate shortens a string to the configured maximum length.
+func (r *MarkdownRenderer) truncate(s string) string {
+	if r.MaxMessageExcerpt <= 0 || len(s) <= r.MaxMessageExcerpt {
+		return s
+	}
+	return s[:r.MaxMessageExcerpt] + "…"
+}
+
+// formatTime formats a time.Time for display in the digest.
+func formatTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04")
+}
+
+// joinLabels joins a list of strings with a comma separator.
+func joinLabels(labels []string) string {
+	return strings.Join(labels, ", ")
+}
+
+// groupByLabel groups message entries by their classification label.
+func groupByLabel(entries []MessageEntry) map[string][]MessageEntry {
+	groups := make(map[string][]MessageEntry)
+	for _, e := range entries {
+		label := e.Classification.Label
+		if label == "" {
+			label = "Unknown"
+		}
+		groups[label] = append(groups[label], e)
+	}
+	return groups
+}
+
+// ---------------------------------------------------------------------------
+// Template
+// ---------------------------------------------------------------------------
+
+// markdownTemplate is the default Markdown template for the digest.
+// It renders Date and Read/Unread status explicitly.
+const markdownTemplate = `# 📧 Email Digest
+
+**Run ID:** {{.RunID}}
+**Generated:** {{formatTime .GeneratedAt}}
+{{- if .AccountLabel}}
+**Account:** {{.AccountLabel}}
+{{- end}}
+**Messages:** {{.TotalMessages}} classified ({{.TotalFetched}} fetched, {{.FailedCount}} failed)
+
+---
+
+{{- range $label := .Labels}}
+{{- $entries := index $.Groups $label}}
+
+## {{$label}} ({{len $entries}})
+
+{{- range $i, $entry := $entries}}
+### {{$i | add1}}. {{$entry.Subject}}
+
+**From:** {{$entry.From}} | **Date:** {{formatTime $entry.Date}}
+{{- if $.IncludeReadStatus}}
+**Status:** {{readBadge $entry.IsRead}}
+{{- end}}
+**Confidence:** {{printf "%.0f" (mul $entry.Classification.Confidence 100)}}%
+**Reason:** {{$entry.Classification.Reason}}
+
+> {{truncate $entry.Excerpt}}
+
+{{- end}}
+{{- end}}
+
+---
+
+*Generated by Email AI Agent*
+`

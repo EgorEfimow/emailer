@@ -174,19 +174,19 @@ Legend:
 ## Phase 17 — Digest Renderers
 
 ### Branch: `feat/digest-renderers`
-- [ ] 17.1 Create `internal/digest` package. Define `Renderer` interface and `DigestData` struct.
-- [ ] 17.2 Implement `MarkdownRenderer` using `text/template` (explicitly render Date and Read/Unread status).
-- [ ] 17.3 Add unit tests for `MarkdownRenderer`.
-- [ ] 17.4 Implement `FallbackRenderer` for LLM failure.
-- [ ] 17.5 Add unit tests for `FallbackRenderer`.
+- [x] 17.1 Create `internal/digest` package. Define `Renderer` interface and `DigestData` struct.
+- [x] 17.2 Implement `MarkdownRenderer` using `text/template` (explicitly render Date and Read/Unread status).
+- [x] 17.3 Add unit tests for `MarkdownRenderer`.
+- [x] 17.4 Implement `FallbackRenderer` for LLM failure.
+- [x] 17.5 Add unit tests for `FallbackRenderer`.
 
 ## Phase 18 — Notify Telegram Channel
 
 ### Branch: `feat/notify-telegram`
-- [ ] 18.1 Create `internal/notify` package. Define `Channel` interface.
-- [ ] 18.2 Create `internal/notify/telegram` package. Implement `Send` using `sendDocument` and `sendMessage`.
-- [ ] 18.3 Implement caption support (1024 char limit) and retry logic.
-- [ ] 18.4 Add HTTP fixture tests (size guard, retryable status codes).
+- [x] 18.1 Create `internal/notify` package. Define `Channel` interface.
+- [x] 18.2 Create `internal/notify/telegram` package. Implement `Send` using `sendDocument` and `sendMessage`.
+- [x] 18.3 Implement caption support (1024 char limit) and retry logic.
+- [x] 18.4 Add HTTP fixture tests (size guard, retryable status codes).
 
 ## Phase 19 — Orchestrator
 

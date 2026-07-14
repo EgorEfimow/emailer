@@ -139,14 +139,25 @@ internal/
 - Custom IMAP keywords (no backslash prefix): `Useful`, `ToDelete`, `Ads`, plus user-defined.
 - Flag writes batched per account in a single `UID STORE`.
 
-### 5.6 Notify Service (`internal/notify`)
+### 5.6 Digest Renderers (`internal/digest`)
 
-- Channel registry; currently supports Telegram (document and message).
-- Renderers (`internal/digest`): Markdown (explicitly renders Date and Read/Unread status).
-- Retry policy: 3 attempts, jittered backoff.
+- `Renderer` interface with `Render(ctx, DigestData) (string, error)` and `Name() string`.
+- `DigestData` struct: run metadata, per-message entries with subject, from, date, read/unread status, classification label/confidence/reason, and excerpt.
+- `MarkdownRenderer`: `text/template`-based, groups messages by classification label in alphabetical order, renders Date and Read/Unread status explicitly, respects `MaxMessageExcerpt` and `IncludeReadStatus` config.
+- `FallbackRenderer`: simplified digest for LLM failure, lists all fetched messages without classification labels.
+
+### 5.7 Notify Service (`internal/notify`)
+
+- `Channel` interface with `Send(ctx, payload, opts)` and `Name() string`.
+- `ChannelRegistry` for factory registration and lookup by name.
+- `SendOptions`: filename hint, caption (max 1024 chars).
+- Telegram implementation (`internal/notify/telegram`): sends digest via `sendDocument` as multipart/form-data with MarkdownV2 parse mode.
+- Caption support: auto-truncated to 1024 characters.
+- Size guard: payloads exceeding 45 MB are rejected.
+- Retry policy: 3 attempts, jittered exponential backoff (base 1s, factor 2, jitter ±25%), only on 429/5xx/network errors.
 - If the run fails before producing a digest, an alert is sent to the configured Telegram chat.
 
-### 5.7 Orchestrator (`internal/orchestrator`)
+### 5.8 Orchestrator (`internal/orchestrator`)
 
 - Composes ingest → reason → act → notify.
 - Emits a run ID at start; propagates via context and logs.
