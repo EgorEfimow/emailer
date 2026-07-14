@@ -286,22 +286,23 @@ func TestLoadEnv_UnsetVarsDoNotOverride(t *testing.T) {
 	}
 }
 
-func TestLoadEnv_MalformedValuesIgnored(t *testing.T) {
+func TestLoadEnv_MalformedValuesReturnError(t *testing.T) {
 	cfg := DefaultConfig()
 
 	setEnv(t, map[string]string{
-		"EMAILER_MAX_WINDOW":               "not-a-duration",
-		"EMAILER_LLM_MAX_RETRIES":          "not-an-int",
-		"EMAILER_FETCH_UNREAD_ONLY":        "not-a-bool",
-		"EMAILER_TELEGRAM_CHAT_ID":         "not-an-int64",
-		"EMAILER_DIGEST_MAX_MESSAGE_EXCERPT": "not-an-int",
+		"EMAILER_MAX_WINDOW":                     "not-a-duration",
+		"EMAILER_LLM_MAX_RETRIES":                "not-an-int",
+		"EMAILER_FETCH_UNREAD_ONLY":              "not-a-bool",
+		"EMAILER_TELEGRAM_CHAT_ID":               "not-an-int64",
+		"EMAILER_DIGEST_MAX_MESSAGE_EXCERPT":      "not-an-int",
 	})
 
-	if err := loadEnv(&cfg); err != nil {
-		t.Fatalf("loadEnv: %v", err)
+	err := loadEnv(&cfg)
+	if err == nil {
+		t.Fatal("loadEnv: expected error for malformed env values, got nil")
 	}
 
-	// All should remain at defaults.
+	// All should remain at defaults despite errors.
 	if cfg.MaxWindow != 72*time.Hour {
 		t.Errorf("MaxWindow = %v, want 72h (default preserved)", cfg.MaxWindow)
 	}
@@ -342,7 +343,7 @@ func TestLoadEnv_EmptyStringSlice(t *testing.T) {
 }
 
 func TestLoadEnv_IMAPDefaultsApplied(t *testing.T) {
-	// Only set HOST; the rest should use zero values.
+	// Only set HOST; the rest should get documented defaults via normalize().
 	cfg := DefaultConfig()
 
 	t.Setenv("EMAILER_IMAP_HOST", "imap.example.com")
@@ -358,13 +359,13 @@ func TestLoadEnv_IMAPDefaultsApplied(t *testing.T) {
 	if acct.Host != "imap.example.com" {
 		t.Errorf("Host = %q, want %q", acct.Host, "imap.example.com")
 	}
-	if acct.Port != 0 {
-		t.Errorf("Port = %d, want 0 (zero value)", acct.Port)
+	if acct.Port != 993 {
+		t.Errorf("Port = %d, want 993 (default)", acct.Port)
 	}
-	if acct.Folders != nil {
-		t.Errorf("Folders = %v, want nil", acct.Folders)
+	if len(acct.Folders) != 1 || acct.Folders[0] != "INBOX" {
+		t.Errorf("Folders = %v, want [INBOX]", acct.Folders)
 	}
-	if acct.UseTLS != false {
-		t.Errorf("UseTLS = %v, want false", acct.UseTLS)
+	if acct.UseTLS != true {
+		t.Errorf("UseTLS = %v, want true (default)", acct.UseTLS)
 	}
 }

@@ -212,7 +212,7 @@ func TestValidate_IMAPConfig(t *testing.T) {
 		mustHaveErr(t, Validate(cfg), "port must be between 1 and 65535")
 	})
 
-	t.Run("port zero is ok (use default)", func(t *testing.T) {
+	t.Run("port zero is normalized to 993", func(t *testing.T) {
 		cfg := validConfig()
 		cfg.IMAP.Accounts[0].Port = 0
 		if err := Validate(cfg); err != nil {
@@ -249,8 +249,20 @@ func TestValidate_IMAPConfig(t *testing.T) {
 		mustHaveErr(t, err, "imap.accounts[1].label is required")
 		mustHaveErr(t, err, "imap.accounts[1].username is required")
 		mustHaveErr(t, err, "imap.accounts[1].password is required")
-	})
-}
+		})
+
+		t.Run("duplicate labels", func(t *testing.T) {
+			cfg := validConfig()
+			cfg.IMAP.Accounts = append(cfg.IMAP.Accounts, IMAPAccount{
+				Label:    cfg.IMAP.Accounts[0].Label,
+				Host:     "imap.other.com",
+				Username: "user@other.com",
+				Password: "otherpass",
+			})
+			err := Validate(cfg)
+			mustHaveErr(t, err, "labels must be unique")
+		})
+	}
 
 func TestValidate_NotifyConfig(t *testing.T) {
 	t.Run("missing bot_token", func(t *testing.T) {

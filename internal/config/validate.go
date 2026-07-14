@@ -73,7 +73,26 @@ func validateIMAPConfig(c IMAPConfig) (errs []error) {
 		errs = append(errs, errors.New("imap.accounts: at least one account is required"))
 	}
 	for i := range c.Accounts {
+		c.Accounts[i].normalize()
 		errs = append(errs, validateIMAPAccount(i, c.Accounts[i])...)
+	}
+	// Duplicate labels would corrupt the (account_label, uid) dedup key.
+	// Check after per-account validation so every label is individually
+	// validated first.
+	seen := make(map[string]int, len(c.Accounts))
+	for i := range c.Accounts {
+		label := c.Accounts[i].Label
+		if label == "" {
+			continue // already reported by validateIMAPAccount
+		}
+		if first, dup := seen[label]; dup {
+			errs = append(errs, fmt.Errorf(
+				"imap.accounts[%d] and imap.accounts[%d] have the same label %q; labels must be unique",
+				first, i, label,
+			))
+		} else {
+			seen[label] = i
+		}
 	}
 	return errs
 }
@@ -87,10 +106,8 @@ func validateIMAPAccount(idx int, a IMAPAccount) (errs []error) {
 	if strings.TrimSpace(a.Host) == "" {
 		errs = append(errs, fmt.Errorf("%s.host is required", prefix))
 	}
-	if a.Port != 0 {
-		if a.Port < 1 || a.Port > 65535 {
-			errs = append(errs, fmt.Errorf("%s.port must be between 1 and 65535, got %d", prefix, a.Port))
-		}
+	if a.Port < 1 || a.Port > 65535 {
+		errs = append(errs, fmt.Errorf("%s.port must be between 1 and 65535, got %d", prefix, a.Port))
 	}
 	if strings.TrimSpace(a.Username) == "" {
 		errs = append(errs, fmt.Errorf("%s.username is required", prefix))

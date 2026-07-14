@@ -9,6 +9,13 @@ import (
 )
 
 func TestSensitive(t *testing.T) {
+	t.Run("Value returns the underlying string", func(t *testing.T) {
+		s := NewSensitive("super-secret-123")
+		if got := s.Value(); got != "super-secret-123" {
+			t.Errorf("Value() = %q, want %q", got, "super-secret-123")
+		}
+	})
+
 	t.Run("LogValue returns [REDACTED]", func(t *testing.T) {
 		s := NewSensitive("super-secret-123")
 		val := s.LogValue()

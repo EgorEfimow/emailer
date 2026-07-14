@@ -85,6 +85,7 @@ func loadFlags(args []string, cfg *Config) error {
 		if *imapFolders != "" {
 			acct.Folders = splitComma(*imapFolders)
 		}
+		acct.normalize()
 		cfg.IMAP.Accounts = append(cfg.IMAP.Accounts, acct)
 	}
 

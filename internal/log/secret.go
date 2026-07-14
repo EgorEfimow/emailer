@@ -15,6 +15,11 @@ type Sensitive struct {
 // NewSensitive creates a new Sensitive wrapper.
 func NewSensitive(value string) Sensitive { return Sensitive{value: value} }
 
+// Value returns the underlying secret string for use at the call site
+// (e.g., sending as an API key in a header). The value is never serialised
+// by slog because of LogValue.
+func (s Sensitive) Value() string { return s.value }
+
 // LogValue implements slog.LogValuer so the actual value is never
 // serialised.
 func (s Sensitive) LogValue() slog.Value {

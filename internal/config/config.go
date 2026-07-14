@@ -92,6 +92,18 @@ type IMAPAccount struct {
 	UseTLS bool `yaml:"use_tls" json:"use_tls"`
 }
 
+// normalize applies documented defaults to an IMAPAccount for fields left at
+// their zero value: port 993 (IMAPS), TLS enabled, folder INBOX.
+func (a *IMAPAccount) normalize() {
+	if a.Port == 0 {
+		a.Port = 993
+		a.UseTLS = true
+	}
+	if a.Folders == nil {
+		a.Folders = []string{"INBOX"}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Notify section
 // ---------------------------------------------------------------------------

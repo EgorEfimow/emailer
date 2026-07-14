@@ -86,7 +86,7 @@ internal/
 - Layered sources, later overrides earlier: defaults → YAML file → env vars → CLI flags.
 - Typed schema with validation.
 - Secrets flagged `sensitive:"true"` are redacted in logs.
-- Schema sections: `llm`, `imap`, `telegram`, `storage`, `digest`, `labels`, `prompts`.
+- Schema sections: `llm`, `imap`, `notify` (wraps `telegram`), `storage`, `digest`, `labels`, `prompts`, `concurrency`.
 - Setting: `FetchUnreadOnly` (boolean, default `false`).
 - Setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM after prolonged host downtime.
 
