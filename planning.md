@@ -191,18 +191,18 @@ Legend:
 ## Phase 19 — Orchestrator
 
 ### Branch: `feat/orchestrator-pipeline`
-- [ ] 19.1 Create `internal/orchestrator` package. Define `Pipeline` and `RunOptions`.
-- [ ] 19.2 Implement `Run` steps 1-4 (open store, fetch concurrently, filter, build LLM request).
-- [ ] 19.3 Implement `Run` steps 5-10 (call provider, parse, render, execute flags, send digest, record finish).
-- [ ] 19.4 Add unit test: all stages succeed.
-- [ ] 19.5 Add unit test: ingest partial failure (continues with remaining accounts).
+- [x] 19.1 Create `internal/orchestrator` package. Define `Pipeline` and `RunOptions`.
+- [x] 19.2 Implement `Run` steps 1-4 (open store, fetch concurrently, filter, build LLM request).
+- [x] 19.3 Implement `Run` steps 5-10 (call provider, parse, render, execute flags, send digest, record finish).
+- [x] 19.4 Add unit test: all stages succeed.
+- [x] 19.5 Add unit test: ingest partial failure (continues with remaining accounts).
 
 ### Branch: `feat/orchestrator-window-logic`
-- [ ] 19.6 Implement partial-failure semantics and fallback digest on LLM failure.
-- [ ] 19.7 Add unit test: LLM failure triggers fallback digest.
-- [ ] 19.8 Implement Dynamic Window logic (`GetLastSuccessfulRunTime`, `MaxWindow` cap, 24h fallback).
-- [ ] 19.9 Add unit test: orchestrator uses `lastRun` time when `Window` is unset.
-- [ ] 19.10 Add unit test: explicit `--window` overrides dynamic logic completely.
+- [x] 19.6 Implement partial-failure semantics and fallback digest on LLM failure.
+- [x] 19.7 Add unit test: LLM failure triggers fallback digest.
+- [x] 19.8 Implement Dynamic Window logic (`GetLastSuccessfulRunTime`, `MaxWindow` cap, 24h fallback).
+- [x] 19.9 Add unit test: orchestrator uses `lastRun` time when `Window` is unset.
+- [x] 19.10 Add unit test: explicit `--window` overrides dynamic logic completely.
 
 ## Phase 20 — CLI Entrypoint
 
