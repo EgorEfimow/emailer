@@ -77,14 +77,14 @@ Legend:
 ## Phase 4 — State Store
 
 ### Branch: `feat/sqlite-schema`
-- [ ] 4.1 Create `internal/store` package. Define `Store` interface and domain structs (`Run`, `ProcessedMessage` with `IsRead`, `FlagRecord`, `DigestRecord`).
-- [ ] 4.2 Implement `SQLiteStore` using `modernc.org/sqlite`. Add migrations directory.
-- [ ] 4.3 Migration 0001: `runs` table.
-- [ ] 4.4 Migration 0002: `processed_messages` table (include `is_read` column) with composite index on `(account_label, uid)`.
-- [ ] 4.5 Migration 0003: `flags_applied` table.
-- [ ] 4.6 Migration 0004: `digests` table.
-- [ ] 4.7 Implement migration runner via `golang-migrate`.
-- [ ] 4.8 Add unit tests verifying migrations apply cleanly to an in-memory DB.
+- [x] 4.1 Create `internal/store` package. Define `Store` interface and domain structs (`Run`, `ProcessedMessage` with `IsRead`, `FlagRecord`, `DigestRecord`).
+- [x] 4.2 Implement `SQLiteStore` using `modernc.org/sqlite`. Add migrations directory.
+- [x] 4.3 Migration 0001: `runs` table.
+- [x] 4.4 Migration 0002: `processed_messages` table (include `is_read` column) with composite index on `(account_label, uid)`.
+- [x] 4.5 Migration 0003: `flags_applied` table.
+- [x] 4.6 Migration 0004: `digests` table.
+- [x] 4.7 Implement migration runner via `golang-migrate`.
+- [x] 4.8 Add unit tests verifying migrations apply cleanly to an in-memory DB.
 
 ### Branch: `feat/sqlite-implementation`
 - [ ] 4.9 Implement `NewSQLiteStore`, `Close()`, `RecordRun`, and `FinishRun`.
