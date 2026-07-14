@@ -100,10 +100,10 @@ Legend:
 ## Phase 5 — Mail Models
 
 ### Branch: `feat/mail-models`
-- [ ] 5.1 Create `internal/mail` package. Define `Message`, `AttachmentMeta`, `Classification`, `MessageKey`, and `Flag` types.
-- [ ] 5.2 Add unit tests for `MessageKey` equality and map behavior.
-- [ ] 5.3 Define `ClassificationToFlag(c Classification, cfg LabelsConfig) Flag` mapping.
-- [ ] 5.4 Add unit tests for mapping including custom labels.
+- [x] 5.1 Create `internal/mail` package. Define `Message`, `AttachmentMeta`, `Classification`, `MessageKey`, and `Flag` types.
+- [x] 5.2 Add unit tests for `MessageKey` equality and map behavior.
+- [x] 5.3 Define `ClassificationToFlag(c Classification, cfg LabelsConfig) Flag` mapping.
+- [x] 5.4 Add unit tests for mapping including custom labels.
 
 ## Phase 6 — Mail Sanitization
 
@@ -163,14 +163,6 @@ Legend:
 - [ ] 11.4 Implement `RepairWithPrompt(raw, err) (string, error)`.
 - [ ] 11.5 Add unit tests for `RepairWithPrompt`.
 
-## Phase 12 — Token Budgeting & Retries
-
-### Branch: `feat/llm-budget-retry`
-- [ ] 12.1 Create `internal/llm/budget.go`. Implement `EstimateTokens` and `SplitBatch`.
-- [ ] 12.2 Add unit tests for split correctness and budget overflow.
-- [ ] 12.3 Create `internal/llm/retry.go`. Implement `RetryPolicy` and `Do(ctx, fn) error`.
-- [ ] 12.4 Add unit tests for retry success, exhaustion, and non-retryable errors.
-
 ## Phase 13 — LLM Gemini Adapter
 
 ### Branch: `feat/llm-gemini`
@@ -178,18 +170,6 @@ Legend:
 - [ ] 13.2 Implement response unmarshaling and token usage extraction.
 - [ ] 13.3 Add HTTP fixture under `testdata/gemini/` and contract tests using `httptest.Server`.
 - [ ] 13.4 Add test for API key in header (not URL) and retryable status codes.
-
-## Phase 14 — LLM Ollama Adapter
-
-### Branch: `feat/llm-ollama`
-- [ ] 14.1 Create `internal/llm/ollama` package. Implement `Factory` and `Classify` using `POST /api/chat`.
-- [ ] 14.2 Add fixtures and contract tests.
-
-## Phase 15 — LLM OpenRouter Adapter
-
-### Branch: `feat/llm-openrouter`
-- [ ] 15.1 Create `internal/llm/openrouter` package. Implement `Factory` (OpenAI-compatible with extra headers).
-- [ ] 15.2 Add fixtures and contract tests.
 
 ## Phase 16 — Security Hardening
 
