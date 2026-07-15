@@ -83,16 +83,6 @@ digest:
   max_key_points_per_message: 5   # cap key points per message (0 = unlimited)
   max_action_items_per_message: 3 # cap action items per message (0 = unlimited)
   priority_only: false            # show only high-priority messages
-  include_global_stats: true      # show global summary block (## Summary)
-  include_account_stats: true     # show per-account stats (## Account Stats)
-  include_summaries: true         # show LLM summaries per message
-  include_key_points: true        # show key points per message
-  include_action_items: true      # show action items per message
-  include_raw_excerpt_fallback: true  # show raw excerpt when analysis fails
-  max_messages: 100               # cap total messages in digest (0 = no limit)
-  max_key_points_per_message: 5   # cap key points per message (0 = no limit)
-  max_action_items_per_message: 3 # cap action items per message (0 = no limit)
-  priority_only: false            # only show high-priority messages
 
 # ---------------------------------------------------------------------------
 # Classification Labels
