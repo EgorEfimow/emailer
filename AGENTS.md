@@ -161,3 +161,8 @@ packages without updating `architecture.md` first.
   drifting from code. If a PR removes a feature (e.g., removing an HTTP
   server), the PR MUST search all three `.md` files for references to that
   feature and remove/update them. Partial cuts are not allowed.
+- **TODO Path**: If a sub-step is removed from `planning.md` for sanity,
+  it MUST be migrated to `TODO.md` (deferred milestones) in the same
+  commit. Removal without relocation is not allowed. `TODO.md` is
+  anchored from `README.md`, the top of `planning.md`, and
+  `architecture.md` §5.4 / §11.

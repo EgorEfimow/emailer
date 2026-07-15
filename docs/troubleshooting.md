@@ -21,8 +21,8 @@ The config validation failed. Common causes:
 The provider specified in the config is not registered. See
 [providers.md](providers.md) for supported providers.
 
-Ensure the provider name exactly matches one of: `gemini`, `ollama`,
-`openrouter`.
+Ensure the provider name exactly matches one of the registered providers
+(currently only `gemini` — see [TODO.md](../TODO.md) for future ones).
 
 ## IMAP Connection Issues
 

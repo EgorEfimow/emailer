@@ -2,6 +2,8 @@
 
 This document lists **actionable tasks** for the email digest pipeline, grouped by feature area. Each task is a single, testable change. Checkboxes reflect **implementation status** (`[x]` = done, `[ ]` = not started).
 
+> Items removed from this file for sanity are tracked in [`TODO.md`](TODO.md).
+
 ---
 
 ## 1. Update LLM Response Schema and Domain Model

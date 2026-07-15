@@ -39,7 +39,7 @@ increasing precedence (later overrides earlier):
 ```yaml
 # LLM Provider
 llm:
-  provider: gemini                # gemini | ollama | openrouter
+  provider: gemini                # gemini (see TODO.md for ollama/openrouter)
   api_key: "your-api-key"         # 🔒 secret
   model: gemini-2.0-flash
   endpoint: ""                    # optional provider URL override
@@ -131,7 +131,7 @@ full list:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `gemini` | LLM provider: `gemini`, `ollama`, `openrouter` |
+| `provider` | string | `gemini` | LLM provider: `gemini` (others tracked in `TODO.md`) |
 | `api_key` | string | — | Provider API key (sensitive) |
 | `model` | string | `gemini-2.0-flash` | Model identifier |
 | `endpoint` | string | — | Custom API endpoint URL |

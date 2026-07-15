@@ -77,6 +77,8 @@ See [deploy/README.md](deploy/README.md) for full deployment instructions.
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Architecture](architecture.md) | Architectural overview and design decisions |
 | [Deployment](deploy/README.md) | systemd timer and cron setup |
+| [Planning](planning.md) | Active step-by-step implementation plan |
+| [TODO](TODO.md) | Deferred milestones (providers, Dockerfile, future digest features) |
 
 ## CLI Usage
 

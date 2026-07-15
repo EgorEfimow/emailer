@@ -133,7 +133,7 @@ internal/
       Classify(ctx, Request) (Response, error)
   }
   ```
-- Built-in providers: Gemini, Ollama, OpenRouter.
+- Built-in provider: Gemini. Ollama and OpenRouter are tracked as future work in [`TODO.md`](TODO.md) and registered via the same provider registry when implemented (see AGENTS.md §7).
 - Composite key `(account_label, uid)` in every payload and response.
 - Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions.
 - Token budgeter computes per-message cost; batches split before provider call.
@@ -223,7 +223,7 @@ internal/
 - **Scheduling:** Managed entirely by the host OS (e.g., `systemd.timer`, `cron`). 
   - systemd service and timer units are provided in `deploy/systemd/`.
   - See `deploy/README.md` for setup instructions.
-- **Docker (Optional):** A simple `Dockerfile` is provided for containerized environments, but native binary execution is the primary target.
+- **Docker (Optional):** A `Dockerfile` is planned but not yet in the tree — see [`TODO.md`](TODO.md). Native binary execution is the primary target.
 
 ## 12. Documentation
 
@@ -231,7 +231,7 @@ Project documentation is located in the repository root and `docs/` directory:
 
 - `README.md` — Quickstart and overview.
 - `docs/configuration.md` — Full configuration reference with all options.
-- `docs/providers.md` — LLM provider setup (Gemini, Ollama, OpenRouter).
+- `docs/providers.md` — LLM provider setup (initially Gemini; additional providers tracked in TODO.md).
 - `docs/security.md` — Threat model and security practices.
 - `docs/troubleshooting.md` — Common issues and solutions.
 - `deploy/README.md` — systemd timer and cron deployment guide.

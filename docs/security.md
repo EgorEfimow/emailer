@@ -46,7 +46,8 @@ values are replaced with `[REDACTED]` in all log output.
 ### 2. API Key Transport
 
 - **Gemini**: API key sent via `x-goog-api-key` header — never in URL.
-- **Ollama/OpenRouter**: API key sent via `Authorization: Bearer` header.
+- Ollama/OpenRouter providers are planned (see [`TODO.md`](../TODO.md)); each
+  future provider will follow the same rule — keys in headers, never in URLs.
 - Generic rule: secrets never appear in URLs or query strings.
 
 ### 3. IMAP Security
