@@ -228,8 +228,9 @@ Project documentation is located in the repository root and `docs/` directory:
 - `docs/troubleshooting.md` — Common issues and solutions.
 - `deploy/README.md` — systemd timer and cron deployment guide.
 - `architecture.md` — This document: architectural overview.
-- `CLAUDE.md` — Project operating manual for coding agents.
+- `AGENTS.md` — Project operating manual for coding agents.
 - `planning.md` — Implementation plan with step-by-step progress.
+- `SIMVER.md` — Semantic versioning and git tagging policy.
 
 ## 13. Testing Strategy
 

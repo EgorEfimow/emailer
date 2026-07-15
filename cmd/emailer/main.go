@@ -1,7 +1,7 @@
 // Package main is the CLI entrypoint for the email AI agent. It wires together
 // all packages from Phases 1–19 into a runnable binary.
 //
-// Per CLAUDE.md §9: no business logic lives here — only dependency wiring.
+// Per AGENTS.md §9: no business logic lives here — only dependency wiring.
 package main
 
 import (

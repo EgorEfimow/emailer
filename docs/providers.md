@@ -139,7 +139,7 @@ from all logs.
 
 ## Adding a New Provider
 
-To add a new LLM provider, follow the steps in [CLAUDE.md](../CLAUDE.md) §7:
+To add a new LLM provider, follow the steps in [AGENTS.md](../AGENTS.md) §7:
 
 1. Add a constant to the provider enum.
 2. Register the provider in the provider registry (in `cmd/emailer/main.go`).
