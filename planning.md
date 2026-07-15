@@ -125,7 +125,7 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 
 **Goal:** Replace raw email excerpts with LLM-generated summaries and key points in the digest.
 
-- [ ] In `internal/digest/markdown.go`, update the Markdown template to render `Summary` and `KeyPoints` per email under the classification:
+- [x] In `internal/digest/markdown.go`, update the Markdown template to render `Summary` and `KeyPoints` per email under the classification:
   ```markdown
   ### Summary
   > {{.Classification.Summary}}
@@ -134,14 +134,14 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
   {{range .Classification.KeyPoints}}- {{.}}
   {{end}}
   ```
-- [ ] In `internal/digest/markdown.go`, render `ActionItems` under each email only when the list is non-empty:
+- [x] In `internal/digest/markdown.go`, render `ActionItems` under each email only when the list is non-empty:
   ```markdown
   **Action items:**
   {{range .Classification.ActionItems}}- {{.}}
   {{end}}
   ```
-- [ ] Use the raw excerpt only as fallback when summary generation fails.
-- [ ] Add renderer tests in `internal/digest/markdown_test.go` for summary/key points/action items.
+- [x] Use the raw excerpt only as fallback when summary generation fails.
+- [x] Add renderer tests in `internal/digest/markdown_test.go` for summary/key points/action items.
 
 ---
 

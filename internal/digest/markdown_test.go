@@ -630,3 +630,243 @@ func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
 		t.Fatalf("result missing high priority badge:\n%s", result)
 	}
 }
+
+func TestMarkdownRenderer_RendersSummary(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-summary",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject: "Project Update",
+				From:    "alice@example.com",
+				Date:    now,
+				IsRead:  true,
+				Classification: mail.Classification{
+					Label:      "Useful",
+					Confidence: 0.95,
+					Reason:     "Important project update",
+					Summary:    "The project is on track for the July release.",
+					KeyPoints:  []string{"Release scheduled for July", "All blockers resolved"},
+				},
+				Excerpt: "The project is on track for the July release. All blockers have been resolved and the team is confident.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Verify summary is rendered.
+	if !strings.Contains(result, "**Summary:** The project is on track for the July release.") {
+		t.Fatalf("result missing summary:\n%s", result)
+	}
+
+	// Verify key points are rendered as bullet list.
+	if !strings.Contains(result, "- Release scheduled for July") {
+		t.Fatalf("result missing key point 1:\n%s", result)
+	}
+	if !strings.Contains(result, "- All blockers resolved") {
+		t.Fatalf("result missing key point 2:\n%s", result)
+	}
+
+	// Verify raw excerpt is NOT rendered (fallback only when no summary).
+	if strings.Contains(result, "> The project is on track for the July release. All blockers have been resolved") {
+		t.Fatalf("raw excerpt should not be rendered when summary is present:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_RendersActionItems(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-action",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject: "Action Required",
+				From:    "boss@example.com",
+				Date:    now,
+				IsRead:  false,
+				Classification: mail.Classification{
+					Label:       "Useful",
+					Confidence:  0.9,
+					Reason:      "Needs follow-up",
+					Summary:     "Please review the budget and send the report.",
+					KeyPoints:   []string{"Budget review pending"},
+					ActionItems: []string{"Review Q3 budget", "Send report by Friday"},
+				},
+				Excerpt: "Please review the budget and send the report.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Verify action items section is rendered.
+	if !strings.Contains(result, "**Action items:**") {
+		t.Fatalf("result missing action items section:\n%s", result)
+	}
+	if !strings.Contains(result, "- Review Q3 budget") {
+		t.Fatalf("result missing action item 1:\n%s", result)
+	}
+	if !strings.Contains(result, "- Send report by Friday") {
+		t.Fatalf("result missing action item 2:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_NoActionItemsWhenEmpty(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-no-action",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject: "Informational",
+				From:    "news@example.com",
+				Date:    now,
+				IsRead:  true,
+				Classification: mail.Classification{
+					Label:       "Useful",
+					Confidence:  0.8,
+					Reason:      "FYI",
+					Summary:     "Weekly newsletter with no action needed.",
+					KeyPoints:   []string{"New feature announced"},
+					ActionItems: nil, // empty
+				},
+				Excerpt: "Weekly newsletter with no action needed.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Action items section should NOT be present.
+	if strings.Contains(result, "**Action items:**") {
+		t.Fatalf("action items section should not appear when list is empty:\n%s", result)
+	}
+
+	// Summary should still be present.
+	if !strings.Contains(result, "**Summary:** Weekly newsletter with no action needed.") {
+		t.Fatalf("result missing summary:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_FallbackToExcerptWhenNoSummary(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-fallback",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject: "No Summary Available",
+				From:    "system@example.com",
+				Date:    now,
+				IsRead:  true,
+				Classification: mail.Classification{
+					Label:      "Useful",
+					Confidence: 0.7,
+					Reason:     "Could not summarize",
+					// Summary intentionally empty
+				},
+				Excerpt: "This is the raw excerpt used as fallback when summary generation fails.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Verify excerpt fallback is rendered.
+	if !strings.Contains(result, "> This is the raw excerpt used as fallback when summary generation fails.") {
+		t.Fatalf("result missing excerpt fallback:\n%s", result)
+	}
+
+	// Verify no summary/key points sections are rendered.
+	if strings.Contains(result, "**Summary:**") {
+		t.Fatalf("summary section should not appear when summary is empty:\n%s", result)
+	}
+	if strings.Contains(result, "**Key points:**") {
+		t.Fatalf("key points section should not appear when summary is empty:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_MixedContent(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-mixed",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject: "Has Summary",
+				From:    "alice@example.com",
+				Date:    now,
+				IsRead:  true,
+				Classification: mail.Classification{
+					Label:      "Useful",
+					Confidence: 0.95,
+					Reason:     "Good summary",
+					Summary:    "Well summarized email.",
+					KeyPoints:  []string{"Point A", "Point B"},
+				},
+				Excerpt: "Well summarized email with full details.",
+			},
+			{
+				Subject: "No Summary",
+				From:    "bob@example.com",
+				Date:    now.Add(time.Hour),
+				IsRead:  false,
+				Classification: mail.Classification{
+					Label:      "Ads",
+					Confidence: 0.8,
+					Reason:     "No summary available",
+				},
+				Excerpt: "This message has no summary and should use the excerpt fallback.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// First message: summary rendered, excerpt NOT rendered.
+	if !strings.Contains(result, "**Summary:** Well summarized email.") {
+		t.Fatalf("result missing summary for first message:\n%s", result)
+	}
+	if strings.Contains(result, "> Well summarized email with full details.") {
+		t.Fatalf("excerpt should not render when summary present:\n%s", result)
+	}
+
+	// Second message: excerpt fallback rendered, summary NOT rendered.
+	if !strings.Contains(result, "> This message has no summary and should use the excerpt fallback.") {
+		t.Fatalf("result missing excerpt fallback for second message:\n%s", result)
+	}
+
+	// Count occurrences of "**Summary:**" — should appear exactly once
+	// (for the "Has Summary" message only, not "No Summary").
+	summaryCount := strings.Count(result, "**Summary:**")
+	if summaryCount != 1 {
+		t.Fatalf("expected exactly 1 summary section, got %d:\n%s", summaryCount, result)
+	}
+}
