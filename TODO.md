@@ -19,7 +19,7 @@ the same commit (see `AGENTS.md` §13).
 
 ## Digest features (planning.md Phases 8–12)
 
-- [ ] "What changed" highlights block (Phase 8)
+- [x] "What changed" highlights block (Phase 8)
 - [ ] LLM response schema versioning (Phase 9)
 - [ ] Robust partial LLM failure fallback (Phase 10)
 - [ ] Telegram-safe digest length controls (Phase 11)
