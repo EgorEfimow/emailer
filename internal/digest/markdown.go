@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/egorefimow/emailer/internal/mail"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,7 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 			"add1":        func(n int) int { return n + 1 },
 			"mul":         func(a, b float64) float64 { return a * b },
 			"priority":    displayPriority,
+			"hasSummary":  func(c mail.Classification) bool { return strings.TrimSpace(c.Summary) != "" },
 			"now":         time.Now,
 		}).
 		Parse(markdownTemplate)
@@ -310,7 +313,23 @@ No account stats available.
 **Confidence:** {{printf "%.0f" (mul $entry.Classification.Confidence 100)}}%
 **Reason:** {{$entry.Classification.Reason}}
 
+{{- if hasSummary $entry.Classification}}
+**Summary:** {{$entry.Classification.Summary}}
+
+**Key points:**
+{{- range $entry.Classification.KeyPoints}}
+- {{.}}
+{{- end}}
+{{- if $entry.Classification.ActionItems}}
+
+**Action items:**
+{{- range $entry.Classification.ActionItems}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- else}}
 > {{truncate $entry.Excerpt}}
+{{- end}}
 
 {{- end}}
 {{- end}}
