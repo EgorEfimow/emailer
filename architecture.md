@@ -136,6 +136,12 @@ internal/
 - Built-in provider: Gemini. Ollama and OpenRouter are tracked as future work in [`TODO.md`](TODO.md) and registered via the same provider registry when implemented (see AGENTS.md §7).
 - Composite key `(account_label, uid)` in every payload and response.
 - Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions.
+- **Schema versioning:** LLM responses include a top-level `schema_version` integer (currently `1`). The parser validates this field:
+  - Missing or `0` → accepted as version 1 (backward compatible).
+  - `1` → accepted.
+  - `>1` → rejected (unsupported future version).
+  - `<0` → rejected (malformed).
+  Repair prompts request the current schema version.
 - Token budgeter computes per-message cost; batches split before provider call.
 - Retry policy: 3 attempts, jittered exponential backoff (base 1s, factor 2, jitter ±25%), only on 429/5xx/network.
 - Output validated against JSON schema before use.
