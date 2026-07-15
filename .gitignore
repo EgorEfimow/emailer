@@ -39,3 +39,5 @@ state/
 # Test
 coverage.out
 testlog/*
+
+config.yaml
