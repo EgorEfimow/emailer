@@ -174,10 +174,17 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 ## Phase 8 — "What Changed" Highlights
 
 ### Branch: `feat/digest-highlights`
-- [ ] 8.1 Add a `Highlights []string` field to `DigestData`.
-- [ ] 8.2 Use stored run history (`internal/store`) plus current run to generate deterministic highlights (e.g., high-priority count, failed account, ad increase, same-sender burst).
-- [ ] 8.3 Render highlights near the top; omit or show a neutral message when nothing notable.
-- [ ] 8.4 Add unit tests for normal, no-new-mail, partial-failure, and high-priority scenarios.
+- [x] 8.1 Add a `Highlights []string` field to `DigestData`.
+- [x] 8.2 Use stored run history (`internal/store`) plus current run to generate deterministic highlights (e.g., high-priority count, failed account, ad increase, same-sender burst).
+  - Added `RunDigestSummary` and `SaveRunDigestSummary`/`GetPreviousRunDigestSummary` to `store.Store` interface.
+  - SQLite migration `0005_run_digest_summaries.up.sql` with star schema for counts.
+  - `orchestrator.buildHighlights` generates highlights from current run stats compared to previous run snapshot.
+- [x] 8.3 Render highlights near the top; omit or show a neutral message when nothing notable.
+  - Markdown template now renders `## Highlights` before `## Summary` when `Highlights != nil`.
+  - Empty slice renders "— Nothing notable this run." neutral placeholder.
+- [x] 8.4 Add unit tests for normal, no-new-mail, partial-failure, and high-priority scenarios.
+  - `orchestrator_test.go`: `TestBuildHighlights_HighPriority`, `_FailedAccount`, `_AdsIncrease`, `_NoPriorRun`, `_SenderBurst`.
+  - `markdown_test.go`: `TestMarkdownRenderer_HighlightsSection`, `_NoHighlightsWhenNil`, `_NeutralHighlightsWhenEmpty`.
 
 ## Phase 9 — LLM Response Schema Versioning
 

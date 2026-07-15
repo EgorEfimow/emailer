@@ -84,6 +84,13 @@ type DigestData struct {
 	FailedCount     int
 	GlobalStats     DigestStats
 	AccountStats    []AccountStats
+
+	// Highlights is a short, deterministic list of notable observations for
+	// this run (e.g. "3 high-priority emails", "1 account failed", "Ads up
+	// by 5 vs last run"). The render order is preserved exactly as supplied.
+	// An empty slice means "no notable highlights this run"; the renderer is
+	// responsible for showing a neutral message in that case.
+	Highlights []string
 }
 
 // ---------------------------------------------------------------------------

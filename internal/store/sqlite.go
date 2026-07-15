@@ -440,6 +440,208 @@ func (s *SQLiteStore) RecordDigest(ctx context.Context, d DigestRecord) error {
 }
 
 // ---------------------------------------------------------------------------
+// Run digest summary
+// ---------------------------------------------------------------------------
+
+// SaveRunDigestSummary persists (or replaces) the digest snapshot for a run
+// after it has been rendered. It is idempotent for a given RunID.
+func (s *SQLiteStore) SaveRunDigestSummary(ctx context.Context, summary RunDigestSummary) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store.SaveRunDigestSummary: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if err := s.upsertDigestSummaryTx(ctx, tx, summary); err != nil {
+		return err
+	}
+	if err := s.replaceCountTableTx(ctx, tx, summary.RunID, summary.CountsByLabel,
+		"DELETE FROM run_digest_label_counts WHERE run_id = ?",
+		"INSERT INTO run_digest_label_counts (run_id, label, count) VALUES (?, ?, ?)",
+		"labels"); err != nil {
+		return err
+	}
+	if err := s.replaceCountTableTx(ctx, tx, summary.RunID, summary.SenderCounts,
+		"DELETE FROM run_digest_sender_counts WHERE run_id = ?",
+		"INSERT INTO run_digest_sender_counts (run_id, sender, count) VALUES (?, ?, ?)",
+		"senders"); err != nil {
+		return err
+	}
+	if err := s.replaceCountTableTx(ctx, tx, summary.RunID, summary.DomainCounts,
+		"DELETE FROM run_digest_domain_counts WHERE run_id = ?",
+		"INSERT INTO run_digest_domain_counts (run_id, domain, count) VALUES (?, ?, ?)",
+		"domains"); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store.SaveRunDigestSummary: commit: %w", err)
+	}
+	return nil
+}
+
+// upsertDigestSummaryTx inserts or updates the header row for a run snapshot
+// inside a transaction. It does not commit.
+func (s *SQLiteStore) upsertDigestSummaryTx(ctx context.Context, tx *sql.Tx, summary RunDigestSummary) error {
+	const upsertSummary = `INSERT INTO run_digest_summaries
+		(run_id, finished_at, accounts_failed, high_priority_count, payload_json)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(run_id) DO UPDATE SET
+			finished_at = excluded.finished_at,
+			accounts_failed = excluded.accounts_failed,
+			high_priority_count = excluded.high_priority_count,
+			payload_json = excluded.payload_json`
+	_, err := tx.ExecContext(ctx, upsertSummary,
+		summary.RunID,
+		formatTime(summary.FinishedAt),
+		summary.AccountsFailed,
+		summary.HighPriorityCount,
+		"{}",
+	)
+	if err != nil {
+		return fmt.Errorf("store.SaveRunDigestSummary: upsert summary: %w", err)
+	}
+	return nil
+}
+
+// replaceCountTableTx deletes all rows for runID and re-inserts positive counts
+// from the map. delQuery and insQuery must use ? placeholders with runID as first arg.
+func (s *SQLiteStore) replaceCountTableTx(ctx context.Context, tx *sql.Tx, runID string, counts map[string]int, delQuery, insQuery, tableName string) error {
+	if _, err := tx.ExecContext(ctx, delQuery, runID); err != nil {
+		return fmt.Errorf("store.SaveRunDigestSummary: del %s: %w", tableName, err)
+	}
+	for k, count := range counts {
+		if count <= 0 {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, insQuery, runID, k, count); err != nil {
+			return fmt.Errorf("store.SaveRunDigestSummary: ins %s %q: %w", tableName, k, err)
+		}
+	}
+	return nil
+}
+
+// loadCountTable loads key/count rows for a run from a child table.
+func (s *SQLiteStore) loadCountTable(ctx context.Context, runID, query string) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, query, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //nolint:errcheck
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var key string
+		var count int
+		if err := rows.Scan(&key, &count); err != nil {
+			return nil, err
+		}
+		result[key] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetPreviousRunDigestSummary returns the most recent digest snapshot
+// attached to a *completed* run whose finished_at is strictly before the
+// given run's finished_at. Pass the current run's ID so we can fetch its
+// finished_at and use that as the cutoff. Returns (nil, nil) if no prior
+// snapshot exists.
+func (s *SQLiteStore) GetPreviousRunDigestSummary(ctx context.Context, beforeRunID string) (*RunDigestSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 1) Get the finished_at of the beforeRunID (current run in progress or just finished).
+	var currentFinishedAtStr sql.NullString
+	const getCurrent = "SELECT finished_at FROM runs WHERE id = ?"
+	row := s.db.QueryRowContext(ctx, getCurrent, beforeRunID)
+	if err := row.Scan(&currentFinishedAtStr); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: get current run: %w", err)
+	}
+
+	var currentFinishedAt time.Time
+	if currentFinishedAtStr.Valid {
+		t, err := parseTime(currentFinishedAtStr.String)
+		if err != nil {
+			return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: parse current finished_at: %w", err)
+		}
+		currentFinishedAt = t
+	} else {
+		currentFinishedAt = time.Now()
+	}
+
+	// 2) Find the most recent completed run with finished_at < currentFinishedAt.
+	const query = `
+		SELECT s.run_id, s.finished_at, s.accounts_failed, s.high_priority_count
+		FROM run_digest_summaries s
+		JOIN runs r ON r.id = s.run_id
+		WHERE r.status = 'completed' AND r.finished_at IS NOT NULL AND r.finished_at < ?
+		ORDER BY r.finished_at DESC
+		LIMIT 1
+	`
+	row = s.db.QueryRowContext(ctx, query, formatTime(currentFinishedAt))
+
+	var (
+		summaryRunID       string
+		summaryFinishedAtStr string
+		accountsFailed     int
+		highPriorityCount  int
+	)
+	if err := row.Scan(&summaryRunID, &summaryFinishedAtStr, &accountsFailed, &highPriorityCount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: scan summary: %w", err)
+	}
+
+	finishedAt, err := parseTime(summaryFinishedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: parse finished_at: %w", err)
+	}
+
+	summary := &RunDigestSummary{
+		RunID:             summaryRunID,
+		FinishedAt:        finishedAt,
+		AccountsFailed:    accountsFailed,
+		HighPriorityCount: highPriorityCount,
+		CountsByLabel:     make(map[string]int),
+		SenderCounts:      make(map[string]int),
+		DomainCounts:      make(map[string]int),
+	}
+
+	// 3) Load label counts
+	labels, err := s.loadCountTable(ctx, summaryRunID, "SELECT label, count FROM run_digest_label_counts WHERE run_id = ?")
+	if err != nil {
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: load labels: %w", err)
+	}
+	summary.CountsByLabel = labels
+
+	// 4) Load sender counts
+	senders, err := s.loadCountTable(ctx, summaryRunID, "SELECT sender, count FROM run_digest_sender_counts WHERE run_id = ?")
+	if err != nil {
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: load senders: %w", err)
+	}
+	summary.SenderCounts = senders
+
+	// 5) Load domain counts
+	domains, err := s.loadCountTable(ctx, summaryRunID, "SELECT domain, count FROM run_digest_domain_counts WHERE run_id = ?")
+	if err != nil {
+		return nil, fmt.Errorf("store.GetPreviousRunDigestSummary: load domains: %w", err)
+	}
+	summary.DomainCounts = domains
+
+	return summary, nil
+}
+
+// ---------------------------------------------------------------------------
 // Sentinels
 // ---------------------------------------------------------------------------
 

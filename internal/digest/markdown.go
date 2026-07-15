@@ -93,6 +93,8 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 		"IncludeReadStatus":   r.IncludeReadStatus,
 		"HighPriority":        highPriority,
 		"HasHighPriority":     len(highPriority) > 0,
+		"Highlights":          data.Highlights,
+		"HasHighlights":       data.Highlights != nil,
 	}); err != nil {
 		return "", fmt.Errorf("digest.markdown.execute: %w", err)
 	}
@@ -260,6 +262,18 @@ const markdownTemplate = `# 📧 Email Digest
 **Generated:** {{formatTime .GeneratedAt}}
 {{- if .AccountLabel}}
 **Account:** {{.AccountLabel}}
+{{- end}}
+{{- if .HasHighlights}}
+## Highlights
+
+{{- if .Highlights}}
+{{- range .Highlights}}
+- {{.}}
+{{- end}}
+{{- else}}
+— Nothing notable this run.
+{{- end}}
+
 {{- end}}
 ## Summary
 

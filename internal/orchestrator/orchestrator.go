@@ -282,7 +282,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 		classifications = llmResponse.Classifications
 	}
 
-	digestData := p.buildDigestData(run.ID, messages, classifications, fetchResults, accountErrors)
+	digestData := p.buildDigestData(ctx, run.ID, messages, classifications, fetchResults, accountErrors)
 	result.TotalClassified = len(digestData.Messages)
 	result.FailedCount = digestData.FailedCount
 
@@ -483,7 +483,7 @@ func (p *Pipeline) messagesToInputs(messages []mail.Message) []llm.InputMessage 
 // buildDigestData constructs a digest.DigestData from the fetched messages
 // and LLM classifications. When classifications are nil (LLM failure), the
 // digest data is built without classification data for the fallback renderer.
-func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classifications []mail.Classification, fetchResults []mail.FetchAllResult, accountErrors map[string]error) digest.DigestData {
+func (p *Pipeline) buildDigestData(ctx context.Context, runID string, messages []mail.Message, classifications []mail.Classification, fetchResults []mail.FetchAllResult, accountErrors map[string]error) digest.DigestData {
 	// Build a lookup map from the classification key.
 	classMap := make(map[mail.MessageKey]mail.Classification, len(classifications))
 	for _, c := range classifications {
@@ -511,7 +511,9 @@ func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classi
 		})
 	}
 
-	globalStats, accountStats := buildDigestStats(messages, entries, classifications, fetchResults, accountErrors)
+	globalStats, accountStats, globalSenderCounts, globalDomainCounts := buildDigestStats(messages, entries, classifications, fetchResults, accountErrors)
+
+	highlights := p.buildHighlights(ctx, runID, messages, globalStats, accountStats, globalSenderCounts, globalDomainCounts)
 
 	return digest.DigestData{
 		RunID:           runID,
@@ -522,10 +524,11 @@ func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classi
 		FailedCount:     globalStats.FailedCount,
 		GlobalStats:     globalStats,
 		AccountStats:    accountStats,
+		Highlights:      highlights,
 	}
 }
 
-func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, classifications []mail.Classification, fetchResults []mail.FetchAllResult, accountErrors map[string]error) (digest.DigestStats, []digest.AccountStats) {
+func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, classifications []mail.Classification, fetchResults []mail.FetchAllResult, accountErrors map[string]error) (digest.DigestStats, []digest.AccountStats, map[string]int, map[string]int) {
 	global := digest.DigestStats{
 		FetchedCount:    len(messages),
 		ClassifiedCount: len(classifications),
@@ -605,7 +608,7 @@ func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, cl
 	for _, label := range accountOrder {
 		accounts = append(accounts, *accountByLabel[label])
 	}
-	return global, accounts
+	return global, accounts, globalSenderCounts, globalDomainCounts
 }
 
 // ---------------------------------------------------------------------------
@@ -868,4 +871,72 @@ func topN(counts map[string]int, n int) []string {
 		result[i] = fmt.Sprintf("%s (%d)", kv.key, kv.count)
 	}
 	return result
+}
+
+// ---------------------------------------------------------------------------
+// buildHighlights
+// ---------------------------------------------------------------------------
+
+// buildHighlights generates a deterministic list of notable observations for
+// the current run by comparing current stats against the previous completed
+// run's snapshot from the store.
+//
+// The highlights are ordered by priority: high-priority messages, failed
+// accounts, label deltas, sender bursts. The returned slice is always
+// non-nil; an empty slice means "nothing notable this run" and the
+// renderer will show a neutral placeholder.
+func (p *Pipeline) buildHighlights(ctx context.Context, runID string, messages []mail.Message, globalStats digest.DigestStats, accountStats []digest.AccountStats, globalSenderCounts, globalDomainCounts map[string]int) []string {
+	highlights := make([]string, 0)
+
+	// 1. High-priority emails present
+	if globalStats.HighPriorityCount > 0 {
+		highlights = append(highlights, fmt.Sprintf("%d high-priority email%s require attention", globalStats.HighPriorityCount, plural(globalStats.HighPriorityCount)))
+	}
+
+	// 2. Accounts with fetch errors
+	for _, acct := range accountStats {
+		if acct.Status == "error" {
+			errMsg := acct.Error
+			if len(errMsg) > 80 {
+				errMsg = errMsg[:77] + "..."
+			}
+			highlights = append(highlights, fmt.Sprintf("Account %q failed: %s", acct.AccountLabel, errMsg))
+		}
+	}
+
+	// 3. Delta vs previous run (if we have a prior snapshot)
+	prev, err := p.store.GetPreviousRunDigestSummary(ctx, runID)
+	if err != nil {
+		p.logger.WarnContext(ctx, "failed to fetch previous run summary for highlights", slog.Any("error", err))
+	} else if prev != nil {
+		// 3a. Ads increase
+		prevAds := prev.CountsByLabel["Ads"]
+		currAds := globalStats.CountsByLabel["Ads"]
+		if currAds > prevAds && prevAds > 0 {
+			highlights = append(highlights, fmt.Sprintf("Advertisements up by %d (was %d, now %d)", currAds-prevAds, prevAds, currAds))
+		}
+
+		// 3b. Same-sender burst (compare sender counts from current messages vs previous run)
+		for sender, currCount := range globalSenderCounts {
+			prevCount := prev.SenderCounts[sender]
+			if currCount >= 3 && currCount > prevCount {
+				highlights = append(highlights, fmt.Sprintf("Burst from %s: %d messages (was %d)", sender, currCount, prevCount))
+			}
+		}
+
+		// 3c. Failed account increase
+		if globalStats.AccountsFailed > prev.AccountsFailed && prev.AccountsFailed >= 0 {
+			highlights = append(highlights, fmt.Sprintf("Account failures increased: %d (was %d)", globalStats.AccountsFailed, prev.AccountsFailed))
+		}
+	}
+
+	return highlights
+}
+
+// plural returns "s" if n != 1, else empty string.
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

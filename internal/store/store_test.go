@@ -238,3 +238,9 @@ func (f *fakeStore) AlreadyProcessed(_ context.Context, _ []MessageKey) (map[Mes
 }
 func (f *fakeStore) RecordFlag(_ context.Context, _ FlagRecord) error { return nil }
 func (f *fakeStore) RecordDigest(_ context.Context, _ DigestRecord) error { return nil }
+func (f *fakeStore) SaveRunDigestSummary(_ context.Context, _ RunDigestSummary) error {
+	return nil
+}
+func (f *fakeStore) GetPreviousRunDigestSummary(_ context.Context, _ string) (*RunDigestSummary, error) {
+	return nil, nil
+}

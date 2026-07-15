@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,16 +24,19 @@ import (
 
 // fakeStore implements store.Store for testing.
 type fakeStore struct {
-	runID           int
-	runs            []store.Run
-	processed       map[store.MessageKey]bool
+	mu             sync.RWMutex
+	runID          int
+	runs           []store.Run
+	processed      map[store.MessageKey]bool
 	lastRunFinished *time.Time
-	finishRunErr    error
+	finishRunErr   error
+	summaries      map[string]store.RunDigestSummary
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
 		processed: make(map[store.MessageKey]bool),
+		summaries: make(map[string]store.RunDigestSummary),
 	}
 }
 
@@ -111,6 +116,55 @@ func (f *fakeStore) AlreadyProcessed(_ context.Context, keys []store.MessageKey)
 func (f *fakeStore) RecordFlag(_ context.Context, _ store.FlagRecord) error { return nil }
 
 func (f *fakeStore) RecordDigest(_ context.Context, _ store.DigestRecord) error { return nil }
+
+func (f *fakeStore) SaveRunDigestSummary(_ context.Context, s store.RunDigestSummary) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.summaries[s.RunID] = s
+	return nil
+}
+
+func (f *fakeStore) GetPreviousRunDigestSummary(_ context.Context, beforeRunID string) (*store.RunDigestSummary, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	// Find the current run to find its finished_at
+	var currentFinishedAt time.Time
+	foundCurrent := false
+	for _, r := range f.runs {
+		if r.ID == beforeRunID {
+			if r.FinishedAt != nil {
+				currentFinishedAt = *r.FinishedAt
+				foundCurrent = true
+			}
+			break
+		}
+	}
+	if !foundCurrent {
+		return nil, nil
+	}
+	if currentFinishedAt.IsZero() {
+		currentFinishedAt = time.Now()
+	}
+
+	// Find most recent completed run with finished_at < currentFinishedAt
+	var prior *store.RunDigestSummary
+	var priorFinishedAt time.Time
+	for _, r := range f.runs {
+		if r.Status != store.RunStatusCompleted || r.FinishedAt == nil {
+			continue
+		}
+		if r.FinishedAt.Before(currentFinishedAt) {
+			if prior == nil || r.FinishedAt.After(priorFinishedAt) {
+				if sum, ok := f.summaries[r.ID]; ok {
+					prior = &sum
+					priorFinishedAt = *r.FinishedAt
+				}
+			}
+		}
+	}
+	return prior, nil
+}
 
 // compile-time check
 var _ store.Store = (*fakeStore)(nil)
@@ -836,7 +890,7 @@ func TestBuildDigestData(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, nil, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
 
 	if data.RunID != "run-1" {
 		t.Errorf("expected run-1, got %q", data.RunID)
@@ -869,7 +923,7 @@ func TestBuildDigestDataWithoutClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, nil, nil, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, nil, nil, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -898,7 +952,7 @@ func TestBuildDigestDataPartialClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, nil, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -929,7 +983,7 @@ func TestBuildDigestDataAggregatesStats(t *testing.T) { //nolint:gocyclo
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
 
 	if data.GlobalStats.FetchedCount != 2 {
 		t.Errorf("expected 2 global fetched, got %d", data.GlobalStats.FetchedCount)
@@ -976,7 +1030,7 @@ func TestBuildDigestDataGlobalStatsAccountsAndPriority(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
 
 	if data.GlobalStats.AccountsChecked != 3 {
 		t.Errorf("expected 3 accounts checked, got %d", data.GlobalStats.AccountsChecked)
@@ -1414,7 +1468,7 @@ func TestBuildDigestDataAggregatesTopSendersAndDomains(t *testing.T) { //nolint:
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, nil)
 
 	// Global top senders.
 	if len(data.GlobalStats.TopSenders) != 3 {
@@ -1467,7 +1521,7 @@ func TestBuildDigestDataAggregatesTopSendersAndDomains(t *testing.T) { //nolint:
 
 func TestBuildDigestDataTopSendersEmptyWhenNoMessages(t *testing.T) {
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", nil, nil, nil, nil)
+	data := p.buildDigestData(context.Background(), "run-1", nil, nil, nil, nil)
 
 	if len(data.GlobalStats.TopSenders) != 0 {
 		t.Errorf("expected empty top senders, got %v", data.GlobalStats.TopSenders)
@@ -1494,7 +1548,7 @@ func TestBuildDigestDataSkipsMalformedSenders(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, nil)
 
 	if len(data.GlobalStats.TopSenders) != 1 {
 		t.Fatalf("expected 1 top sender (only valid one), got %d: %v", len(data.GlobalStats.TopSenders), data.GlobalStats.TopSenders)
@@ -1528,10 +1582,211 @@ func TestBuildDigestDataLimitsToTopFive(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, nil)
 
 	if len(data.GlobalStats.TopSenders) > 5 {
 		t.Errorf("expected at most 5 top senders, got %d", len(data.GlobalStats.TopSenders))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: buildHighlights (Phase 8 — "What Changed" Highlights)
+// ---------------------------------------------------------------------------
+
+func TestBuildHighlights_HighPriority(t *testing.T) {
+	now := time.Now()
+	s := newFakeStore()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Urgent", From: "a@b.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Priority: "high"},
+	}
+
+	p := defaultPipeline(s, &fakeIngester{})
+	p.store = s // inject store with summaries
+
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
+
+	if len(data.Highlights) != 1 {
+		t.Fatalf("expected 1 highlight, got %d: %v", len(data.Highlights), data.Highlights)
+	}
+	if !strings.Contains(data.Highlights[0], "high-priority") {
+		t.Errorf("expected high-priority highlight, got %q", data.Highlights[0])
+	}
+}
+
+func TestBuildHighlights_FailedAccount(t *testing.T) {
+	now := time.Now()
+	s := newFakeStore()
+
+	// Record current run first so highlights can find prior runs
+	currentRun := store.Run{ID: "run-1", StartedAt: now, FinishedAt: &now, Status: store.RunStatusCompleted}
+	s.runs = append(s.runs, currentRun)
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Test", From: "a@b.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9},
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "personal"}, Messages: msgs},
+		{Account: config.IMAPAccount{Label: "work"}, Err: errors.New("imap timeout")},
+	}
+
+	p := defaultPipeline(s, &fakeIngester{})
+	p.store = s
+
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
+
+	// Should have 1 highlight for the failed account
+	if len(data.Highlights) != 1 {
+		t.Fatalf("expected 1 highlight for failed account, got %d: %v", len(data.Highlights), data.Highlights)
+	}
+	if !strings.Contains(data.Highlights[0], "failed") {
+		t.Errorf("expected failed account highlight, got %q", data.Highlights[0])
+	}
+}
+
+func TestBuildHighlights_AdsIncrease(t *testing.T) {
+	now := time.Now()
+	s := newFakeStore()
+
+	// Record current run first
+	currentRun := store.Run{ID: "run-1", StartedAt: now, FinishedAt: &now, Status: store.RunStatusCompleted}
+	s.runs = append(s.runs, currentRun)
+
+	// Setup a prior run with Ads count
+	priorRun := store.Run{
+		ID:        "prior-run-1",
+		StartedAt: now.Add(-2 * time.Hour),
+		FinishedAt: func() *time.Time { t := now.Add(-time.Hour); return &t }(),
+		Status:    store.RunStatusCompleted,
+		MessageCount: 5,
+	}
+	s.runs = append(s.runs, priorRun)
+	s.summaries["prior-run-1"] = store.RunDigestSummary{
+		RunID:          "prior-run-1",
+		FinishedAt:     *priorRun.FinishedAt,
+		CountsByLabel:  map[string]int{"Ads": 2},
+		SenderCounts:   map[string]int{},
+		DomainCounts:   map[string]int{},
+		AccountsFailed: 0,
+		HighPriorityCount: 0,
+	}
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Ad 1", From: "spam@x.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 2, Subject: "Ad 2", From: "spam@x.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 3, Subject: "Ad 3", From: "spam@x.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 4, Subject: "Ad 4", From: "spam@x.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Ads", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 2}, Label: "Ads", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 3}, Label: "Ads", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 4}, Label: "Ads", Confidence: 0.9},
+	}
+
+	p := defaultPipeline(s, &fakeIngester{})
+	p.store = s
+
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
+
+	// Should have highlight for Ads increase (was 2, now 4)
+	found := false
+	for _, h := range data.Highlights {
+		if strings.Contains(h, "Advertisements up by") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected Ads increase highlight, got %v", data.Highlights)
+	}
+}
+
+func TestBuildHighlights_NoPriorRun(t *testing.T) {
+	now := time.Now()
+	s := newFakeStore()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Test", From: "a@b.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9},
+	}
+
+	p := defaultPipeline(s, &fakeIngester{})
+	p.store = s
+
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
+
+	// Should have no highlights when no prior run exists
+	if len(data.Highlights) != 0 {
+		t.Errorf("expected no highlights (no prior run), got %v", data.Highlights)
+	}
+}
+
+func TestBuildHighlights_SenderBurst(t *testing.T) {
+	now := time.Now()
+	s := newFakeStore()
+
+	// Record current run first
+	currentRun := store.Run{ID: "run-1", StartedAt: now, FinishedAt: &now, Status: store.RunStatusCompleted}
+	s.runs = append(s.runs, currentRun)
+
+	// Prior run with 1 message from sender
+	priorRun := store.Run{
+		ID:        "prior-run-1",
+		StartedAt: now.Add(-2 * time.Hour),
+		FinishedAt: func() *time.Time { t := now.Add(-time.Hour); return &t }(),
+		Status:    store.RunStatusCompleted,
+		MessageCount: 1,
+	}
+	s.runs = append(s.runs, priorRun)
+	s.summaries["prior-run-1"] = store.RunDigestSummary{
+		RunID:          "prior-run-1",
+		FinishedAt:     *priorRun.FinishedAt,
+		CountsByLabel:  map[string]int{},
+		SenderCounts:   map[string]int{"burst@sender.com": 1},
+		DomainCounts:   map[string]int{},
+		AccountsFailed: 0,
+		HighPriorityCount: 0,
+	}
+
+	// Current run with 5 from same sender (burst threshold >= 3)
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "A", From: "burst@sender.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 2, Subject: "B", From: "burst@sender.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 3, Subject: "C", From: "burst@sender.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 4, Subject: "D", From: "burst@sender.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 5, Subject: "E", From: "burst@sender.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 2}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 3}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 4}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 5}, Label: "Useful", Confidence: 0.9},
+	}
+
+	p := defaultPipeline(s, &fakeIngester{})
+	p.store = s
+
+	data := p.buildDigestData(context.Background(), "run-1", msgs, classifications, nil, nil)
+
+	found := false
+	for _, h := range data.Highlights {
+		if strings.Contains(h, "Burst from") && strings.Contains(h, "burst@sender.com") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected sender burst highlight, got %v", data.Highlights)
 	}
 }
 

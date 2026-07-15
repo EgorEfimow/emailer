@@ -1001,3 +1001,111 @@ func TestMarkdownRenderer_MixedContent(t *testing.T) {
 		t.Fatalf("expected exactly 1 summary section, got %d:\n%s", summaryCount, result)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Tests: Highlights rendering (Phase 8)
+// ---------------------------------------------------------------------------
+
+func TestMarkdownRenderer_HighlightsSection(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-highlights",
+		GeneratedAt: now,
+		Highlights:  []string{"3 high-priority emails require attention", "Account \"work\" failed: connection refused"},
+		Messages: []MessageEntry{
+			{Subject: "Test", From: "a@b.com", Date: now, IsRead: true, Classification: mail.Classification{Label: "Useful", Confidence: 0.9, Reason: "Test", Priority: "high"}},
+		},
+		GlobalStats: DigestStats{
+			FetchedCount: 1, ClassifiedCount: 1,
+			CountsByLabel: map[string]int{"Useful": 1},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Verify highlights section appears near the top
+	if !strings.Contains(result, "## Highlights") {
+		t.Fatalf("result missing 'Highlights' section:\n%s", result)
+	}
+
+	// Verify highlights are rendered
+	if !strings.Contains(result, "3 high-priority emails require attention") {
+		t.Fatalf("result missing first highlight:\n%s", result)
+	}
+	if !strings.Contains(result, "Account \"work\" failed: connection refused") {
+		t.Fatalf("result missing second highlight:\n%s", result)
+	}
+
+	// Verify order: Highlights before Summary
+	highlightsPos := strings.Index(result, "## Highlights")
+	summaryPos := strings.Index(result, "## Summary")
+	if highlightsPos == -1 || summaryPos == -1 || highlightsPos >= summaryPos {
+		t.Fatalf("Highlights section should appear before Summary:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_NoHighlightsWhenNil(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-no-highlights",
+		GeneratedAt: now,
+		Highlights:  nil, // nil = don't render section at all
+		Messages: []MessageEntry{
+			{Subject: "Test", From: "a@b.com", Date: now, IsRead: true, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}},
+		},
+		GlobalStats: DigestStats{
+			FetchedCount: 1, ClassifiedCount: 1,
+			CountsByLabel: map[string]int{"Useful": 1},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Highlights section should NOT appear when nil
+	if strings.Contains(result, "## Highlights") {
+		t.Fatalf("Highlights section should not appear when Highlights is nil:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_NeutralHighlightsWhenEmpty(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-empty-highlights",
+		GeneratedAt: now,
+		Highlights:  []string{}, // empty slice = render section with neutral message
+		Messages: []MessageEntry{
+			{Subject: "Test", From: "a@b.com", Date: now, IsRead: true, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}},
+		},
+		GlobalStats: DigestStats{
+			FetchedCount: 1, ClassifiedCount: 1,
+			CountsByLabel: map[string]int{"Useful": 1},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Highlights section SHOULD appear (empty slice != nil)
+	if !strings.Contains(result, "## Highlights") {
+		t.Fatalf("Highlights section should appear for empty slice:\n%s", result)
+	}
+
+	// Should show neutral message
+	if !strings.Contains(result, "Nothing notable this run") {
+		t.Fatalf("expected neutral message for empty highlights:\n%s", result)
+	}
+}

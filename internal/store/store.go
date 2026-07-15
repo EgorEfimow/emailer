@@ -127,6 +127,37 @@ type DigestRecord struct {
 }
 
 // ---------------------------------------------------------------------------
+// RunDigestSummary
+// ---------------------------------------------------------------------------
+
+// RunDigestSummary is a compact, immutable snapshot of one completed run's
+// digest content. It is persisted alongside the run so that downstream
+// features (e.g. "what changed" highlights) can compute deltas across runs
+// without re-reading every per-message record.
+//
+// Implementations must populate the fields they observe; missing fields
+// are zero-valued and treated as "no data".
+type RunDigestSummary struct {
+	// RunID is the run the snapshot belongs to.
+	RunID string
+	// FinishedAt is when the run completed (UTC).
+	FinishedAt time.Time
+	// CountsByLabel maps LLM-assigned classification label to the number of
+	// messages observed in that run (excluding failed/unknown accounts).
+	CountsByLabel map[string]int
+	// SenderCounts maps the sender email address (lowercased) to the number
+	// of messages received from that sender in the run.
+	SenderCounts map[string]int
+	// DomainCounts maps the sender domain (lowercased) to the number of
+	// messages received from that domain in the run.
+	DomainCounts map[string]int
+	// AccountsFailed is the number of accounts whose fetch failed.
+	AccountsFailed int
+	// HighPriorityCount is the number of high-priority messages observed.
+	HighPriorityCount int
+}
+
+// ---------------------------------------------------------------------------
 // Store interface
 // ---------------------------------------------------------------------------
 
@@ -185,4 +216,19 @@ type Store interface {
 
 	// RecordDigest persists a digest delivery record.
 	RecordDigest(ctx context.Context, d DigestRecord) error
+
+	// -----------------------------------------------------------------------
+	// Run digest summary (highlights support)
+	// -----------------------------------------------------------------------
+
+	// SaveRunDigestSummary persists (or replaces) the digest snapshot for a
+	// run after it has been rendered. It is idempotent for a given RunID.
+	SaveRunDigestSummary(ctx context.Context, s RunDigestSummary) error
+
+	// GetPreviousRunDigestSummary returns the most recent digest snapshot
+	// attached to a *completed* run whose ID is strictly less significant
+	// than beforeRunID. Pass the current run's ID to never read the
+	// in-progress self-snapshot. Returns (nil, nil) if no prior snapshot
+	// exists.
+	GetPreviousRunDigestSummary(ctx context.Context, beforeRunID string) (*RunDigestSummary, error)
 }

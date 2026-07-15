@@ -13,18 +13,20 @@ import (
 //
 // NoopStore is safe for concurrent use.
 type NoopStore struct {
-	mu          sync.RWMutex
-	runs        []Run
-	messages    map[MessageKey]ProcessedMessage
-	flags       []FlagRecord
-	digests     []DigestRecord
-	nextID      int
+	mu              sync.RWMutex
+	runs            []Run
+	messages        map[MessageKey]ProcessedMessage
+	flags           []FlagRecord
+	digests         []DigestRecord
+	digestSummaries map[string]RunDigestSummary
+	nextID          int
 }
 
 // NewNoopStore creates a new empty NoopStore.
 func NewNoopStore() *NoopStore {
 	return &NoopStore{
-		messages: make(map[MessageKey]ProcessedMessage),
+		messages:        make(map[MessageKey]ProcessedMessage),
+		digestSummaries: make(map[string]RunDigestSummary),
 	}
 }
 
@@ -193,10 +195,82 @@ func (s *NoopStore) RecordDigest(_ context.Context, d DigestRecord) error {
 	return nil
 }
 
-// noopRunID generates a deterministic run ID for NoopStore.
-func noopRunID(n int) string {
-	return fmt.Sprintf("noop-run-%d", n)
+// ---------------------------------------------------------------------------
+// Run digest summary
+// ---------------------------------------------------------------------------
+
+// SaveRunDigestSummary persists (or replaces) the digest snapshot for a run
+// after it has been rendered. It is idempotent for a given RunID.
+func (s *NoopStore) SaveRunDigestSummary(_ context.Context, summary RunDigestSummary) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// In NoopStore, we don't persist the summary across runs in a DB.
+	// We just store it in memory in the runs list for this test session.
+	// For the purpose of GetPreviousRunDigestSummary, we can't do a real
+	// historical lookup across process restarts, but we can for the test.
+	// We'll track summaries in a map keyed by runID.
+	if s.digestSummaries == nil {
+		s.digestSummaries = make(map[string]RunDigestSummary)
+	}
+	s.digestSummaries[summary.RunID] = summary
+	return nil
+}
+
+// GetPreviousRunDigestSummary returns the most recent digest snapshot
+// attached to a *completed* run whose finished_at is strictly before the
+// given run's finished_at. In NoopStore, we just look at in-memory runs.
+func (s *NoopStore) GetPreviousRunDigestSummary(_ context.Context, beforeRunID string) (*RunDigestSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Find the current run to get its finished_at
+	var currentFinishedAt time.Time
+	found := false
+	for _, r := range s.runs {
+		if r.ID == beforeRunID {
+			if r.FinishedAt != nil {
+				currentFinishedAt = *r.FinishedAt
+				found = true
+			}
+			break
+		}
+	}
+	if !found {
+		// Current run not found — cannot determine prior.
+		return nil, nil
+	}
+	if currentFinishedAt.IsZero() {
+		// Current run hasn't finished yet — use now as upper bound.
+		currentFinishedAt = time.Now()
+	}
+
+	// Find most recent completed run with finished_at < currentFinishedAt
+	var prior *RunDigestSummary
+	var priorFinishedAt time.Time
+	for _, r := range s.runs {
+		if r.Status != RunStatusCompleted || r.FinishedAt == nil {
+			continue
+		}
+		if r.FinishedAt.Before(currentFinishedAt) {
+			if prior == nil || r.FinishedAt.After(priorFinishedAt) {
+				// Check if we have a summary for this run
+				if s.digestSummaries != nil {
+					if sum, ok := s.digestSummaries[r.ID]; ok {
+						prior = &sum
+						priorFinishedAt = *r.FinishedAt
+					}
+				}
+			}
+		}
+	}
+	return prior, nil
 }
 
 // Compile-time check: *NoopStore implements Store.
 var _ Store = (*NoopStore)(nil)
+
+// noopRunID generates a deterministic run ID for NoopStore.
+func noopRunID(n int) string {
+	return fmt.Sprintf("noop-run-%d", n)
+}
