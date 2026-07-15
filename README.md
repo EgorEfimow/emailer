@@ -58,7 +58,7 @@ See [deploy/README.md](deploy/README.md) for full deployment instructions.
 ## Features
 
 - **Multi-account IMAP**: Fetch from as many IMAP accounts as needed.
-- **LLM classification**: Classifies emails via Gemini, Ollama, or OpenRouter.
+- **LLM classification**: Classifies emails via Gemini, Ollama, OpenRouter, or Mistral.
 - **IMAP keyword flags**: Tags messages with `Useful`, `ToDelete`, `Ads` (and custom labels).
 - **Telegram digest**: Renders a grouped Markdown digest and sends it to Telegram.
 - **Idempotent**: Tracks processed messages by `(account_label, uid)` — no duplicates.
@@ -72,7 +72,7 @@ See [deploy/README.md](deploy/README.md) for full deployment instructions.
 | Document | Description |
 |----------|-------------|
 | [Configuration](docs/configuration.md) | All configuration options — env vars, YAML, CLI flags |
-| [Providers](docs/providers.md) | LLM provider setup (Gemini, Ollama, OpenRouter) |
+| [Providers](docs/providers.md) | LLM provider setup (Gemini, Ollama, OpenRouter, Mistral) |
 | [Security](docs/security.md) | Threat model and security practices |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Architecture](architecture.md) | Architectural overview and design decisions |
