@@ -1,7 +1,7 @@
+version: "2"
 run:
   timeout: 5m
   tests: true
-
 linters:
   enable:
     - errcheck
@@ -9,22 +9,20 @@ linters:
     - staticcheck
     - gocyclo
     - misspell
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  gocyclo:
-    min-complexity: 15
-
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    gocyclo:
+      min-complexity: 15
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+        text: "Function length"
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-      text: "Function length"
   max-issues-per-linter: 0
   max-same-issues: 0
-
 severity:
-  default-severity: warning
+  default: warning
