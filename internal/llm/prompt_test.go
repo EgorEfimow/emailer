@@ -107,6 +107,14 @@ func TestBuildPrompt_Structure(t *testing.T) { //nolint:gocyclo
 		t.Error("missing priority assessment guidance")
 	}
 
+	// Check schema_version is required in output.
+	if !strings.Contains(prompt, `"schema_version"`) {
+		t.Error("missing schema_version field in schema")
+	}
+	if !strings.Contains(prompt, `"schema_version": 1`) {
+		t.Error("missing schema_version example value in schema")
+	}
+
 	// Check labels are listed.
 	if !strings.Contains(prompt, "- Useful") {
 		t.Error("missing Useful label")

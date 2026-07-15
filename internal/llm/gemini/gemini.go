@@ -213,7 +213,7 @@ func (p *Provider) Classify(ctx context.Context, req llm.Request) (llm.Response,
 	}
 
 	// Parse the classifications from the response text.
-	classifications, err := llm.ParseResponse(text, req.Labels)
+	parseResult, err := llm.ParseResponse(text, req.Labels)
 	if err != nil {
 		// Return raw response for potential repair.
 		return llm.Response{
@@ -223,7 +223,8 @@ func (p *Provider) Classify(ctx context.Context, req llm.Request) (llm.Response,
 	}
 
 	return llm.Response{
-		Classifications: classifications,
+		Classifications: parseResult.Classifications,
+		SchemaVersion:   parseResult.SchemaVersion,
 		RawResponse:     text,
 		TokenUsage:      extractTokenUsage(gResp),
 	}, nil

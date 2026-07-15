@@ -49,7 +49,7 @@ Body:
 
 Output ONLY valid JSON in this exact format (no markdown fences, no extra text):
 
-{"classifications": [
+{"schema_version": 1, "classifications": [
   {"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "priority": "medium"}
 ]}
 

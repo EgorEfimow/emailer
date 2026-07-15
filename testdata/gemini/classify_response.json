@@ -4,7 +4,7 @@
       "content": {
         "parts": [
           {
-            "text": "{\"classifications\": [\n  {\"uid\": 42, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.95, \"reason\": \"Important project update\", \"summary\": \"Project update with important details\", \"key_points\": [\"Important project update\"], \"action_items\": [\"Review the project update\"], \"priority\": \"medium\"},\n  {\"uid\": 43, \"account\": \"personal\", \"label\": \"Ads\", \"confidence\": 0.88, \"reason\": \"Marketing newsletter\", \"summary\": \"Promotional newsletter\", \"key_points\": [\"Marketing newsletter\"], \"priority\": \"low\"}\n]}"
+            "text": "{\"schema_version\": 1, \"classifications\": [\n  {\"uid\": 42, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.95, \"reason\": \"Important project update\", \"summary\": \"Project update with important details\", \"key_points\": [\"Important project update\"], \"action_items\": [\"Review the project update\"], \"priority\": \"medium\"},\n  {\"uid\": 43, \"account\": \"personal\", \"label\": \"Ads\", \"confidence\": 0.88, \"reason\": \"Marketing newsletter\", \"summary\": \"Promotional newsletter\", \"key_points\": [\"Marketing newsletter\"], \"priority\": \"low\"}\n]}"
           }
         ],
         "role": "model"

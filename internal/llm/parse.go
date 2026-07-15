@@ -9,11 +9,26 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Schema version
+// ---------------------------------------------------------------------------
+
+// CurrentSchemaVersion is the LLM response schema version this code understands.
+// Increment when the JSON structure changes in a backward-incompatible way.
+const CurrentSchemaVersion = 1
+
+// ---------------------------------------------------------------------------
 // Classification schema
 // ---------------------------------------------------------------------------
 
+// ParseResult holds the result of parsing an LLM response.
+type ParseResult struct {
+	Classifications []mail.Classification
+	SchemaVersion   int
+}
+
 // classificationsWrapper is the JSON structure returned by the LLM.
 type classificationsWrapper struct {
+	SchemaVersion   int                  `json:"schema_version"`
 	Classifications []classificationItem `json:"classifications"`
 }
 
@@ -38,12 +53,13 @@ type classificationItem struct {
 // ParseResponse strips markdown code fences from the LLM output, parses the
 // JSON, and validates each classification against the configured labels.
 //
-// Returns the parsed classifications. If the response is empty or malformed,
-// or if any classification is invalid, an error is returned with details.
-// The caller can use the error to construct a repair prompt.
-func ParseResponse(raw string, validLabels []string) ([]mail.Classification, error) { //nolint:gocyclo
+// Returns the parsed classifications and schema version. If the response is
+// empty or malformed, or if any classification is invalid, an error is
+// returned with details. The caller can use the error to construct a repair
+// prompt.
+func ParseResponse(raw string, validLabels []string) (ParseResult, error) { //nolint:gocyclo
 	if strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("parse: empty response")
+		return ParseResult{}, fmt.Errorf("parse: empty response")
 	}
 
 	// Strip markdown code fences and trailing content.
@@ -52,11 +68,20 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 	// Parse the JSON wrapper.
 	var wrapper classificationsWrapper
 	if err := json.Unmarshal([]byte(cleaned), &wrapper); err != nil {
-		return nil, fmt.Errorf("parse: invalid JSON: %w", err)
+		return ParseResult{}, fmt.Errorf("parse: invalid JSON: %w", err)
 	}
 
+	// Validate schema version.
+	if wrapper.SchemaVersion < 0 {
+		return ParseResult{}, fmt.Errorf("parse: invalid schema_version %d (must be >= 0)", wrapper.SchemaVersion)
+	}
+	if wrapper.SchemaVersion > CurrentSchemaVersion {
+		return ParseResult{}, fmt.Errorf("parse: unsupported schema_version %d (max supported: %d)", wrapper.SchemaVersion, CurrentSchemaVersion)
+	}
+	// Missing schema_version (0) is treated as version 1 for backward compatibility.
+
 	if len(wrapper.Classifications) == 0 {
-		return nil, fmt.Errorf("parse: empty classifications array")
+		return ParseResult{}, fmt.Errorf("parse: empty classifications array")
 	}
 
 	// Build the valid label set.
@@ -140,12 +165,18 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 	if len(errs) > 0 {
 		// Return partial results along with the error for repair.
 		if len(results) > 0 {
-			return results, fmt.Errorf("parse: %d/%d items invalid: %s", len(errs), len(wrapper.Classifications), strings.Join(errs, "; "))
+			return ParseResult{
+				Classifications: results,
+				SchemaVersion:   wrapper.SchemaVersion,
+			}, fmt.Errorf("parse: %d/%d items invalid: %s", len(errs), len(wrapper.Classifications), strings.Join(errs, "; "))
 		}
-		return nil, fmt.Errorf("parse: all %d items invalid: %s", len(wrapper.Classifications), strings.Join(errs, "; "))
+		return ParseResult{}, fmt.Errorf("parse: all %d items invalid: %s", len(wrapper.Classifications), strings.Join(errs, "; "))
 	}
 
-	return results, nil
+	return ParseResult{
+		Classifications: results,
+		SchemaVersion:   wrapper.SchemaVersion,
+	}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +263,7 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("\n```\n\n")
 	fmt.Fprintf(&b, "Parse error: %s\n\n", parseErr.Error())
 	b.WriteString("Please fix the JSON and output ONLY valid JSON in this exact format (no markdown fences, no extra text):\n\n")
-	b.WriteString(`{"classifications": [`)
+	fmt.Fprintf(&b, `{"schema_version": %d, "classifications": [`, CurrentSchemaVersion)
 	b.WriteString("\n  ")
 	b.WriteString(`{"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "priority": "medium"}`)
 	b.WriteString("\n]}\n\n")
@@ -244,6 +275,9 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("- Confidence must be between 0.0 and 1.0\n")
 	b.WriteString("- action_items are optional\n")
 	b.WriteString("- priority is optional when unavailable; when present it must be one of: high, medium, low\n")
+	b.WriteString("- schema_version must be ")
+	fmt.Fprintf(&b, "%d", CurrentSchemaVersion)
+	b.WriteString("\n")
 	b.WriteString("- Output ONLY the JSON object, nothing else\n")
 
 	return b.String(), nil

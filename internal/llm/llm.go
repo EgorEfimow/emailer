@@ -78,6 +78,9 @@ type Response struct {
 	// RawResponse is the unparsed LLM output, useful for debugging and
 	// repair attempts.
 	RawResponse string
+
+	// SchemaVersion is the LLM response schema version that was parsed.
+	SchemaVersion int
 }
 
 // ---------------------------------------------------------------------------
