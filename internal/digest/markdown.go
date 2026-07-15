@@ -86,6 +86,14 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 		}
 	}
 
+	// Collect high-priority messages for the "Needs attention" section.
+	var highPriority []MessageEntry
+	for _, m := range data.Messages {
+		if strings.EqualFold(strings.TrimSpace(m.Classification.Priority), "high") {
+			highPriority = append(highPriority, m)
+		}
+	}
+
 	// Group messages by classification label.
 	groups := groupByLabel(data.Messages)
 	// Sort groups alphabetically for consistent output.
@@ -97,18 +105,20 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, map[string]any{
-		"RunID":             data.RunID,
-		"GeneratedAt":       data.GeneratedAt,
-		"AccountLabel":      data.AccountLabel,
-		"TotalFetched":      data.TotalFetched,
-		"TotalClassified":   data.TotalClassified,
-		"FailedCount":       data.FailedCount,
-		"Groups":            groups,
-		"Labels":            labels,
-		"TotalMessages":     len(data.Messages),
-		"GlobalStats":       stats,
-		"AccountStats":      data.AccountStats,
-		"IncludeReadStatus": r.IncludeReadStatus,
+		"RunID":               data.RunID,
+		"GeneratedAt":         data.GeneratedAt,
+		"AccountLabel":        data.AccountLabel,
+		"TotalFetched":        data.TotalFetched,
+		"TotalClassified":     data.TotalClassified,
+		"FailedCount":         data.FailedCount,
+		"Groups":              groups,
+		"Labels":              labels,
+		"TotalMessages":       len(data.Messages),
+		"GlobalStats":         stats,
+		"AccountStats":        data.AccountStats,
+		"IncludeReadStatus":   r.IncludeReadStatus,
+		"HighPriority":        highPriority,
+		"HasHighPriority":     len(highPriority) > 0,
 	}); err != nil {
 		return "", fmt.Errorf("digest.markdown.execute: %w", err)
 	}
@@ -237,6 +247,8 @@ const markdownTemplate = `# 📧 Email Digest
 **Fetched:** {{.GlobalStats.FetchedCount}}
 **Classified:** {{.GlobalStats.ClassifiedCount}}
 **Failed:** {{.GlobalStats.FailedCount}}
+**Accounts:** {{.GlobalStats.AccountsChecked}} checked, {{.GlobalStats.AccountsSucceeded}} succeeded, {{.GlobalStats.AccountsFailed}} failed
+**High priority:** {{.GlobalStats.HighPriorityCount}}
 {{- if $.IncludeReadStatus}}
 **Read:** {{.GlobalStats.ReadCount}}
 **Unread:** {{.GlobalStats.UnreadCount}}
@@ -264,7 +276,23 @@ const markdownTemplate = `# 📧 Email Digest
 No account stats available.
 {{- end}}
 
+{{- if $.HasHighPriority}}
+## 🚨 Needs Attention
+
+{{- range $i, $entry := $.HighPriority}}
+### {{$i | add1}}. {{$entry.Subject}}
+
+**From:** {{$entry.From}} | **Date:** {{formatTime $entry.Date}}
+{{- if $.IncludeReadStatus}}
+**Status:** {{readBadge $entry.IsRead}}
+{{- end}}
+**Priority:** {{priority $entry.Classification.Priority}}
+**Reason:** {{$entry.Classification.Reason}}
+
+{{- end}}
 ---
+
+{{- end}}
 
 {{- range $label := .Labels}}
 {{- $entries := index $.Groups $label}}

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/egorefimow/emailer/internal/config"
@@ -581,11 +582,22 @@ func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, cl
 		stats.CountsByLabel[label]++
 		if classifiedKeys[entry.Classification.Key] {
 			stats.ClassifiedCount++
+			if strings.EqualFold(entry.Classification.Priority, "high") {
+				global.HighPriorityCount++
+			}
 		} else {
 			global.FailedCount++
 			stats.FailedCount++
 		}
 	}
+
+	global.AccountsChecked = len(accountOrder)
+	for _, label := range accountOrder {
+		if accountByLabel[label].Status == "error" {
+			global.AccountsFailed++
+		}
+	}
+	global.AccountsSucceeded = global.AccountsChecked - global.AccountsFailed
 
 	accounts := make([]digest.AccountStats, 0, len(accountOrder))
 	for _, label := range accountOrder {

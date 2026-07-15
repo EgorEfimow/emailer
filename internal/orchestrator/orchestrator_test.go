@@ -957,6 +957,41 @@ func TestBuildDigestDataAggregatesStats(t *testing.T) { //nolint:gocyclo
 	}
 }
 
+func TestBuildDigestDataGlobalStatsAccountsAndPriority(t *testing.T) {
+	now := time.Now()
+	msgs := []mail.Message{
+		{AccountLabel: "work", UID: 1, Subject: "A", Body: "Body", Date: now, IsRead: true},
+		{AccountLabel: "work", UID: 2, Subject: "B", Body: "Body", Date: now, IsRead: false},
+		{AccountLabel: "personal", UID: 3, Subject: "C", Body: "Body", Date: now, IsRead: false},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 1}, Label: "Useful", Confidence: 0.9, Priority: "high"},
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 2}, Label: "Ads", Confidence: 0.8, Priority: "low"},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 3}, Label: "Useful", Confidence: 0.9, Priority: "high"},
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "work"}, Messages: msgs[:2]},
+		{Account: config.IMAPAccount{Label: "personal"}, Messages: msgs[2:3]},
+		{Account: config.IMAPAccount{Label: "broken"}, Err: errors.New("timeout")},
+	}
+
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
+
+	if data.GlobalStats.AccountsChecked != 3 {
+		t.Errorf("expected 3 accounts checked, got %d", data.GlobalStats.AccountsChecked)
+	}
+	if data.GlobalStats.AccountsSucceeded != 2 {
+		t.Errorf("expected 2 accounts succeeded, got %d", data.GlobalStats.AccountsSucceeded)
+	}
+	if data.GlobalStats.AccountsFailed != 1 {
+		t.Errorf("expected 1 account failed, got %d", data.GlobalStats.AccountsFailed)
+	}
+	if data.GlobalStats.HighPriorityCount != 2 {
+		t.Errorf("expected 2 high-priority, got %d", data.GlobalStats.HighPriorityCount)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Tests: payloadHash helper
 // ---------------------------------------------------------------------------
