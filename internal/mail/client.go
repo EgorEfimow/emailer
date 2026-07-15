@@ -49,7 +49,9 @@ func (c *IMAPClient) Dial(ctx context.Context, account config.IMAPAccount) error
 			return fmt.Errorf("imap.dial: %w", err)
 		}
 		if err := cli.StartTLS(&tls.Config{ServerName: account.Host}); err != nil {
-			_ = cli.Logout()
+			if logoutErr := cli.Logout(); logoutErr != nil {
+				return fmt.Errorf("imap.starttls: %w (logout: %w)", err, logoutErr)
+			}
 			return fmt.Errorf("imap.starttls: %w", err)
 		}
 		c.cli = cli

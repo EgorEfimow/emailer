@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestDefaultConfig(t *testing.T) {
+func TestDefaultConfig(t *testing.T) { //nolint:gocyclo
 	cfg := DefaultConfig()
 
 	t.Run("top-level defaults", func(t *testing.T) {

@@ -19,7 +19,7 @@ func writeJSON(t *testing.T, content string) string {
 	return path
 }
 
-func TestLoadJSON_FullOverride(t *testing.T) {
+func TestLoadJSON_FullOverride(t *testing.T) { //nolint:gocyclo
 	cfg := DefaultConfig()
 	jsonContent := `{
   "llm": {

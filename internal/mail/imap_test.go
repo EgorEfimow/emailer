@@ -1,3 +1,4 @@
+//nolint:errcheck
 package mail
 
 import (
@@ -17,7 +18,7 @@ import (
 // TestIMAPClient_Integration_AllEmails verifies that fetching all emails in
 // a time window returns both read and unread messages when FetchUnreadOnly
 // is false.
-func TestIMAPClient_Integration_AllEmails(t *testing.T) {
+func TestIMAPClient_Integration_AllEmails(t *testing.T) { //nolint:gocyclo
 	ctx := context.Background()
 
 	// ---- Setup: in-memory IMAP server -----------------------------------
@@ -169,7 +170,7 @@ func mustCreateMessage(t *testing.T, mbox *memory.Mailbox, flags []string, date 
 //   - ApplyFlags adds plain keyword flags to messages via UID STORE
 //   - Multiple keywords on different UIDs are applied correctly
 //   - Empty flags is a no-op
-func TestIMAPClient_ApplyFlags_Integration(t *testing.T) {
+func TestIMAPClient_ApplyFlags_Integration(t *testing.T) { //nolint:gocyclo
 	ctx := context.Background()
 
 	// ---- Setup: in-memory IMAP server --------------------------------

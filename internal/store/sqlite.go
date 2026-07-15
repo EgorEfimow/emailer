@@ -41,13 +41,13 @@ func NewSQLiteStore(ctx context.Context, path string) (*SQLiteStore, error) {
 
 	// Verify the connection is alive.
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("store.NewSQLiteStore: ping db: %w", err)
 	}
 
 	// Run migrations.
 	if err := runMigrations(db); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("store.NewSQLiteStore: migrations: %w", err)
 	}
 
@@ -65,7 +65,7 @@ func runMigrations(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("migration source: %w", err)
 	}
-	defer src.Close()
+	defer src.Close() //nolint:errcheck
 
 	inst, err := sqlite.WithInstance(db, &sqlite.Config{})
 	if err != nil {
@@ -223,7 +223,7 @@ func (s *SQLiteStore) ListRuns(ctx context.Context, limit int) ([]Run, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store.ListRuns: query: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	var runs []Run
 	for rows.Next() {
@@ -370,7 +370,7 @@ func (s *SQLiteStore) AlreadyProcessed(ctx context.Context, keys []MessageKey) (
 	if err != nil {
 		return nil, fmt.Errorf("store.AlreadyProcessed: query: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	result := make(map[MessageKey]bool, len(keys))
 	for rows.Next() {

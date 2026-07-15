@@ -1,35 +1,9 @@
 package config
 
 import (
-	"os"
 	"testing"
 	"time"
 )
-
-// clearEnv removes all EMAILER_* vars so tests start from a clean slate.
-func clearEnv(t *testing.T) {
-	t.Helper()
-	for _, e := range os.Environ() {
-		if len(e) >= 8 && e[:8] == "EMAILER_" {
-			kv := splitEnv(e)
-			os.Unsetenv(kv.key)
-		}
-	}
-}
-
-type envEntry struct {
-	key   string
-	value string
-}
-
-func splitEnv(e string) envEntry {
-	for i := 0; i < len(e); i++ {
-		if e[i] == '=' {
-			return envEntry{key: e[:i], value: e[i+1:]}
-		}
-	}
-	return envEntry{key: e}
-}
 
 func setEnv(t *testing.T, vars map[string]string) {
 	t.Helper()

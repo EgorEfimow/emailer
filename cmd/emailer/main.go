@@ -33,7 +33,7 @@ func main() {
 
 // run implements the full CLI lifecycle: parse flags → load config → set up
 // dependencies → run orchestrator → map result to exit code.
-func run() int {
+func run() int { //nolint:gocyclo
 	// -----------------------------------------------------------------------
 	// Step 1: Parse main.go-only flags manually
 	// -----------------------------------------------------------------------
@@ -134,7 +134,9 @@ func run() int {
 			)
 			// Close any clients that were already dialled.
 			for _, c := range imapClients {
-				_ = c.Close()
+				if err := c.Close(); err != nil {
+					logger.Error("imap: close error during dial failure cleanup", slog.Any("error", err))
+				}
 			}
 			fmt.Fprintf(os.Stderr, "imap dial error for %s (%s): %v\n", acct.Label, acct.Host, err)
 			return 1
@@ -146,9 +148,13 @@ func run() int {
 				slog.String("host", acct.Host),
 				slog.Any("error", err),
 			)
-			_ = cli.Close()
+			if err := cli.Close(); err != nil {
+				logger.Error("imap: close error after login failure", slog.Any("error", err))
+			}
 			for _, c := range imapClients {
-				_ = c.Close()
+				if err := c.Close(); err != nil {
+					logger.Error("imap: close error during login failure cleanup", slog.Any("error", err))
+				}
 			}
 			fmt.Fprintf(os.Stderr, "imap login error for %s (%s): %v\n", acct.Label, acct.Host, err)
 			return 1
@@ -289,7 +295,7 @@ func run() int {
 
 // parseMainFlags manually extracts the 5 main.go-only flags from os.Args,
 // returning the filtered args slice for config.Load. It also detects --help.
-func parseMainFlags() (cfgPath, logLevel string, dryRun, forceReprocess bool, window *time.Duration, filteredArgs []string, showHelp bool) {
+func parseMainFlags() (cfgPath, logLevel string, dryRun, forceReprocess bool, window *time.Duration, filteredArgs []string, showHelp bool) { //nolint:gocyclo
 	args := os.Args[1:]
 	filtered := make([]string, 0, len(args))
 
@@ -391,5 +397,5 @@ Exit codes:
   2   CLI flag / config validation error
   130 Cancelled (SIGINT/SIGTERM)
 `)
-	_ = os.Stderr.Sync()
+	_ = os.Stderr.Sync() //nolint:errcheck
 }

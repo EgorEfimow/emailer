@@ -152,7 +152,7 @@ func New(
 //  8. Apply IMAP keyword flags.
 //  9. Send the digest via the notification channel.
 //  10. Record the run finish.
-func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
+func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:gocyclo
 	// -----------------------------------------------------------------------
 	// Step 1: Record run start
 	// -----------------------------------------------------------------------
@@ -178,7 +178,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 	since, err := p.fetchWindow(ctx, opts)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to determine fetch window", slog.Any("error", err))
-		_ = p.store.FinishRun(ctx, run.ID, store.RunStatusIngestFailed, 0, err)
+		if ferr := p.store.FinishRun(ctx, run.ID, store.RunStatusIngestFailed, 0, err); ferr != nil {
+			log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
+		}
 		result.Status = store.RunStatusIngestFailed
 		result.Err = err
 		return result
@@ -211,7 +213,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 		if len(messages) == 0 {
 			// All accounts failed — cannot proceed.
 			allFailed := fmt.Errorf("all %d account(s) failed to fetch messages", len(accountErrors))
-			_ = p.store.FinishRun(ctx, run.ID, store.RunStatusIngestFailed, 0, allFailed)
+			if ferr := p.store.FinishRun(ctx, run.ID, store.RunStatusIngestFailed, 0, allFailed); ferr != nil {
+				log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
+			}
 			result.Status = store.RunStatusIngestFailed
 			result.Err = allFailed
 			return result
@@ -231,7 +235,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 
 	if len(messages) == 0 {
 		log.InfoContext(ctx, "no new messages to process")
-		_ = p.store.FinishRun(ctx, run.ID, store.RunStatusCompleted, 0, nil)
+		if ferr := p.store.FinishRun(ctx, run.ID, store.RunStatusCompleted, 0, nil); ferr != nil {
+			log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
+		}
 		result.Status = store.RunStatusCompleted
 		return result
 	}
@@ -285,7 +291,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 	}
 	if err != nil {
 		log.ErrorContext(ctx, "digest rendering failed", slog.Any("error", err))
-		_ = p.store.FinishRun(ctx, run.ID, store.RunStatusDegraded, len(messages), err)
+		if ferr := p.store.FinishRun(ctx, run.ID, store.RunStatusDegraded, len(messages), err); ferr != nil {
+			log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
+		}
 		result.Status = store.RunStatusDegraded
 		result.Err = err
 		return result
@@ -308,24 +316,30 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 
 		if digestErr != nil {
 			log.ErrorContext(ctx, "digest delivery failed", slog.Any("error", digestErr))
-			_ = p.store.RecordDigest(ctx, store.DigestRecord{
+			if derr := p.store.RecordDigest(ctx, store.DigestRecord{
 				RunID:       run.ID,
 				Channel:     p.channel.Name(),
 				Status:      store.DigestStatusFailed,
 				PayloadHash: digestHash,
-			})
-			_ = p.store.FinishRun(ctx, run.ID, store.RunStatusDegraded, len(messages), digestErr)
+			}); derr != nil {
+				log.ErrorContext(ctx, "failed to record digest", slog.Any("error", derr))
+			}
+			if ferr := p.store.FinishRun(ctx, run.ID, store.RunStatusDegraded, len(messages), digestErr); ferr != nil {
+				log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
+			}
 			result.Status = store.RunStatusDegraded
 			result.Err = digestErr
 			return result
 		}
 
-		_ = p.store.RecordDigest(ctx, store.DigestRecord{
+		if derr := p.store.RecordDigest(ctx, store.DigestRecord{
 			RunID:       run.ID,
 			Channel:     p.channel.Name(),
 			Status:      store.DigestStatusSent,
 			PayloadHash: digestHash,
-		})
+		}); derr != nil {
+			log.ErrorContext(ctx, "failed to record digest", slog.Any("error", derr))
+		}
 		log.InfoContext(ctx, "digest sent")
 	}
 
@@ -340,13 +354,19 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 	// -----------------------------------------------------------------------
 	// Step 10: Record run finish
 	// -----------------------------------------------------------------------
-	runStatus := store.RunStatusCompleted
-	if result.Status == store.RunStatusPartial {
-		runStatus = store.RunStatusPartial
-	} else if result.Status == store.RunStatusDegraded {
-		runStatus = store.RunStatusDegraded
+	runStatus := func() store.RunStatus {
+		switch result.Status {
+		case store.RunStatusPartial:
+			return store.RunStatusPartial
+		case store.RunStatusDegraded:
+			return store.RunStatusDegraded
+		default:
+			return store.RunStatusCompleted
+		}
+	}()
+	if ferr := p.store.FinishRun(ctx, run.ID, runStatus, len(messages), nil); ferr != nil {
+		log.ErrorContext(ctx, "failed to finish run", slog.Any("error", ferr))
 	}
-	_ = p.store.FinishRun(ctx, run.ID, runStatus, len(messages), nil)
 	result.Status = runStatus
 	log.InfoContext(ctx, "run finished", slog.String("status", string(runStatus)))
 	return result

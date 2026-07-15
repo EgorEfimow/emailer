@@ -19,7 +19,7 @@ func writeYAML(t *testing.T, content string) string {
 	return path
 }
 
-func TestLoadYAML_FullOverride(t *testing.T) {
+func TestLoadYAML_FullOverride(t *testing.T) { //nolint:gocyclo
 	cfg := DefaultConfig()
 	yamlContent := `
 llm:

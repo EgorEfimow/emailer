@@ -165,7 +165,7 @@ func (p *Provider) Classify(ctx context.Context, req llm.Request) (llm.Response,
 	if err != nil {
 		return llm.Response{}, fmt.Errorf("gemini.classify.request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer httpResp.Body.Close() //nolint:errcheck
 
 	respBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {

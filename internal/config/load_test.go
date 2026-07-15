@@ -406,7 +406,7 @@ func TestLoad_FlagsDoNotCreateIMAPAccountWithoutHost(t *testing.T) {
 	}
 }
 
-func TestLoad_FlagAliasesAndHyphens(t *testing.T) {
+func TestLoad_FlagAliasesAndHyphens(t *testing.T) { //nolint:gocyclo
 	// Verify that all expected flag names are parseable.
 	cfg, err := Load(LoadOptions{
 		Args: []string{

@@ -49,21 +49,6 @@ const (
 // Telegram API types
 // ---------------------------------------------------------------------------
 
-// sendDocumentRequest is the multipart request for the sendDocument endpoint.
-type sendDocumentRequest struct {
-	ChatID    int64  `json:"chat_id"`
-	Caption   string `json:"caption,omitempty"`
-	ParseMode string `json:"parse_mode,omitempty"`
-}
-
-// sendMessageRequest is the JSON body for the sendMessage endpoint.
-type sendMessageRequest struct {
-	ChatID                int64  `json:"chat_id"`
-	Text                  string `json:"text"`
-	ParseMode             string `json:"parse_mode,omitempty"`
-	DisableWebPagePreview bool   `json:"disable_web_page_preview"`
-}
-
 // telegramResponse is the standard Telegram Bot API response wrapper.
 type telegramResponse struct {
 	OK          bool            `json:"ok"`
@@ -242,7 +227,7 @@ func (c *Channel) sendDocument(ctx context.Context, payload, caption string) err
 	if err != nil {
 		return fmt.Errorf("telegram.send_document.request: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer httpResp.Body.Close() //nolint:errcheck
 
 	respBody, err := io.ReadAll(httpResp.Body)
 	if err != nil {

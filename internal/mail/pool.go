@@ -78,7 +78,7 @@ func FetchAll(ctx context.Context, accounts []config.IMAPAccount, ingesters map[
 	}
 
 	// Wait for all goroutines to finish.
-	_ = g.Wait() // errors are collected in results, not propagated
+	_ = g.Wait() //nolint:errcheck // errors are collected in results, not propagated
 
 	return results
 }

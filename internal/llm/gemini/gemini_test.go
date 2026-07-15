@@ -1,3 +1,4 @@
+//nolint:errcheck
 package gemini
 
 import (
@@ -107,7 +108,7 @@ func TestFactory_CustomEndpoint(t *testing.T) {
 // Classify: happy path
 // ---------------------------------------------------------------------------
 
-func TestClassify_HappyPath(t *testing.T) {
+func TestClassify_HappyPath(t *testing.T) { //nolint:gocyclo
 	fixture := loadFixture(t, "classify_response.json")
 
 	srv, captured := newTestServer(t, http.StatusOK, fixture)

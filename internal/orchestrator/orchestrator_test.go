@@ -914,7 +914,7 @@ func TestBuildDigestDataPartialClassifications(t *testing.T) {
 	}
 }
 
-func TestBuildDigestDataAggregatesStats(t *testing.T) {
+func TestBuildDigestDataAggregatesStats(t *testing.T) { //nolint:gocyclo
 	now := time.Now()
 	msgs := []mail.Message{
 		{AccountLabel: "work", UID: 1, Subject: "A", Body: "Body", Date: now, IsRead: true},

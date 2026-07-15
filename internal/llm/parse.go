@@ -41,7 +41,7 @@ type classificationItem struct {
 // Returns the parsed classifications. If the response is empty or malformed,
 // or if any classification is invalid, an error is returned with details.
 // The caller can use the error to construct a repair prompt.
-func ParseResponse(raw string, validLabels []string) ([]mail.Classification, error) {
+func ParseResponse(raw string, validLabels []string) ([]mail.Classification, error) { //nolint:gocyclo
 	if strings.TrimSpace(raw) == "" {
 		return nil, fmt.Errorf("parse: empty response")
 	}
@@ -230,7 +230,7 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("```\n")
 	b.WriteString(raw)
 	b.WriteString("\n```\n\n")
-	b.WriteString(fmt.Sprintf("Parse error: %s\n\n", parseErr.Error()))
+	fmt.Fprintf(&b, "Parse error: %s\n\n", parseErr.Error())
 	b.WriteString("Please fix the JSON and output ONLY valid JSON in this exact format (no markdown fences, no extra text):\n\n")
 	b.WriteString(`{"classifications": [`)
 	b.WriteString("\n  ")

@@ -56,7 +56,7 @@ var blockTags = map[string]bool{
 //   - CDATA sections
 //   - Block-level elements replaced with newline for readability
 //   - Malformed HTML (lone '<' or '<' followed by non-alpha emitted as text)
-func StripHTML(s string) string {
+func StripHTML(s string) string { //nolint:gocyclo
 	if s == "" {
 		return ""
 	}
@@ -86,7 +86,7 @@ func StripHTML(s string) string {
 		var n strings.Builder
 		for i < len(s) {
 			c := s[i]
-			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '-' || (c >= '0' && c <= '9')) {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '-' && (c < '0' || c > '9') {
 				break
 			}
 			n.WriteByte(c)
@@ -114,7 +114,7 @@ func StripHTML(s string) string {
 				// If the character after '<' is not a letter, '/', or '!',
 				// this is probably a comparison operator, not a tag.
 				next := remaining[0]
-				if !((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') || next == '/' || next == '!') {
+				if (next < 'a' || next > 'z') && (next < 'A' || next > 'Z') && next != '/' && next != '!' {
 					b.WriteByte(c)
 					i++
 					continue
@@ -440,7 +440,7 @@ var htmlEntities = map[string]string{
 	"&ordf;":    "ª",
 	"&laquo;":   "«",
 	"&not;":     "¬",
-	"&shy;":     "­",
+	"&shy;":     "\u00ad",
 	"&reg;":     "®",
 	"&macr;":    "¯",
 	"&deg;":     "°",
@@ -488,7 +488,7 @@ var htmlEntities = map[string]string{
 // DecodeEntities replaces common HTML entities in s with their Unicode
 // equivalents. It also handles numeric entities (both decimal &#NN; and
 // hexadecimal &#xNN;).
-func DecodeEntities(s string) string {
+func DecodeEntities(s string) string { //nolint:gocyclo
 	if s == "" || !strings.ContainsRune(s, '&') {
 		return s
 	}

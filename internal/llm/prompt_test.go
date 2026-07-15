@@ -8,7 +8,7 @@ import (
 	"github.com/egorefimow/emailer/internal/mail"
 )
 
-func TestBuildPrompt_Structure(t *testing.T) {
+func TestBuildPrompt_Structure(t *testing.T) { //nolint:gocyclo
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 
 	req := Request{

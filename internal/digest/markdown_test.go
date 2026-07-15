@@ -9,7 +9,7 @@ import (
 	"github.com/egorefimow/emailer/internal/mail"
 )
 
-func TestMarkdownRenderer_HappyPath(t *testing.T) {
+func TestMarkdownRenderer_HappyPath(t *testing.T) { //nolint:gocyclo
 	now := time.Date(2026, 7, 14, 10, 30, 0, 0, time.UTC)
 	r := NewMarkdownRenderer(true, 200)
 
@@ -325,7 +325,7 @@ func TestMarkdownRenderer_MultipleLabels(t *testing.T) {
 	}
 
 	// Verify alphabetical order: Ads, ToDelete, Useful.
-	if !(adsPos < toDeletePos && toDeletePos < usefulPos) {
+	if adsPos >= toDeletePos || toDeletePos >= usefulPos {
 		t.Error("sections not in alphabetical order")
 	}
 }
@@ -492,7 +492,7 @@ func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
 	if highPos == -1 || mediumPos == -1 || lowPos == -1 {
 		t.Fatalf("result missing expected subjects:\n%s", result)
 	}
-	if !(highPos < mediumPos && mediumPos < lowPos) {
+	if highPos >= mediumPos || mediumPos >= lowPos {
 		t.Fatalf("messages not sorted by priority:\n%s", result)
 	}
 	if !strings.Contains(result, "**Priority:** 🔴 High") {

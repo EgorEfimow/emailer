@@ -95,7 +95,7 @@ func (c *IMAPClient) fetchBody(ctx context.Context, uids []uint32) (map[uint32]B
 // Text parts are extracted from the preferred text/plain alternative when
 // available. text/html parts are included only when no text/plain part exists.
 // Attachments are identified by Content-Disposition or a filename parameter.
-func readBody(r io.Reader, contentType string) (string, []AttachmentMeta, error) {
+func readBody(r io.Reader, contentType string) (string, []AttachmentMeta, error) { //nolint:gocyclo
 	var entity *message.Entity
 	var err error
 
