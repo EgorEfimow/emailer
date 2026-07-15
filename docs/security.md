@@ -80,7 +80,7 @@ The classification prompt is designed to resist injection:
 
 ### 6. Network Security
 
-- All network calls have configurable timeouts (default 120s for LLM, 60s for IMAP).
+- All network calls have configurable timeouts (default 120s for LLM, 30s for IMAP).
 - TLS is used for all external connections.
 - Retry policy includes jittered backoff to avoid thundering-herd.
 

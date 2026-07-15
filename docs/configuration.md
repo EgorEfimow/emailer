@@ -20,6 +20,7 @@ increasing precedence (later overrides earlier):
 | LLM max retries | `EMAILER_LLM_MAX_RETRIES` | `--llm-max-retries` | `3` | |
 | LLM max concurrent | `EMAILER_LLM_MAX_CONCURRENT` | `--llm-max-concurrent` | `4` | |
 | IMAP accounts | `EMAILER_IMAP_ACCOUNTS` | `--imap-*` | — | |
+| IMAP command timeout | `EMAILER_IMAP_TIMEOUT` | — | `30s` | |
 | Telegram bot token | `EMAILER_NOTIFY_TELEGRAM_BOT_TOKEN` | `--telegram-bot-token` | — | ✅ |
 | Telegram chat ID | `EMAILER_NOTIFY_TELEGRAM_CHAT_ID` | `--telegram-chat-id` | — | |
 | State path | `EMAILER_STORAGE_STATE_PATH` | `--state-path` | `./state/emailer.db` | |
@@ -31,6 +32,7 @@ increasing precedence (later overrides earlier):
 | Custom labels | `EMAILER_LABELS_CUSTOM` | `--labels-custom` | `[]` | |
 | Concurrency accounts | `EMAILER_CONCURRENCY_MAX_ACCOUNTS` | `--concurrency-max-accounts` | `4` | |
 | Concurrency LLM calls | `EMAILER_CONCURRENCY_MAX_LLM_CALLS` | `--concurrency-max-llm-calls` | `4` | |
+| Fetch batch size | `EMAILER_CONCURRENCY_FETCH_BATCH_SIZE` | — | `10` | |
 
 ## Configuration File (YAML)
 
@@ -142,6 +144,7 @@ full list:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `accounts` | array | `[]` | List of IMAP accounts |
+| `timeout` | duration | `30s` | Per-command timeout (dial, login, select, fetch, store); `0` = no timeout |
 | — `label` | string | — | Unique account identifier (used in dedup key) |
 | — `host` | string | — | IMAP server hostname |
 | — `port` | int | `993` | IMAP server port (993=IMAPS, 143=STARTTLS) |

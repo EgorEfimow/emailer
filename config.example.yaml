@@ -25,6 +25,7 @@ llm:
 # IMAP Accounts
 # ---------------------------------------------------------------------------
 imap:
+  timeout: 30s                   # per-command timeout (dial/login/select/fetch/store); 0 = none
   accounts:
     - label: work                 # unique identifier, used in dedup key
       host: imap.example.com
@@ -98,3 +99,4 @@ prompts:
 concurrency:
   max_accounts: 4                 # IMAP accounts fetched concurrently
   max_llm_calls: 4                # simultaneous LLM provider calls
+  fetch_batch_size: 10            # UIDs per IMAP UID FETCH command (0 = default)

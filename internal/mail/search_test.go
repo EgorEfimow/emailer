@@ -45,7 +45,7 @@ func TestNewSearchWindowCriteria_ZeroTime(t *testing.T) {
 }
 
 func TestSearchByWindow_NotConnected(t *testing.T) {
-	c := NewIMAPClient()
+	c := newTestClient(t)
 	since := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 
 	_, err := c.searchByWindow(context.Background(), since, false)
@@ -55,7 +55,7 @@ func TestSearchByWindow_NotConnected(t *testing.T) {
 }
 
 func TestSelectFolder_NotConnected(t *testing.T) {
-	c := NewIMAPClient()
+	c := newTestClient(t)
 
 	_, err := c.selectFolder(context.Background(), "INBOX", true)
 	if err == nil {

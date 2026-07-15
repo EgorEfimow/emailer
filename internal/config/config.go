@@ -64,6 +64,10 @@ type LLMConfig struct {
 // IMAPConfig holds the list of IMAP accounts to ingest.
 type IMAPConfig struct {
 	Accounts []IMAPAccount `yaml:"accounts" json:"accounts"`
+
+	// Timeout bounds each IMAP command (dial, login, select, fetch, store).
+	// A zero value means no timeout. Default is 30s.
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
 }
 
 // IMAPAccount represents a single IMAP mailbox to fetch messages from.
@@ -189,4 +193,9 @@ type ConcurrencyConfig struct {
 
 	// MaxLLMCalls limits the number of simultaneous LLM provider calls.
 	MaxLLMCalls int `yaml:"max_llm_calls" json:"max_llm_calls"`
+
+	// FetchBatchSize limits how many UIDs are fetched per IMAP UID FETCH
+	// command. Larger batches use fewer round-trips; smaller batches bound
+	// memory and per-command duration. 0 falls back to the default (10).
+	FetchBatchSize int `yaml:"fetch_batch_size" json:"fetch_batch_size"`
 }

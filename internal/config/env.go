@@ -48,6 +48,9 @@ func loadEnv(cfg *Config) error {
 		cfg.IMAP.Accounts = append(cfg.IMAP.Accounts, imapAcct)
 	}
 
+	// Global IMAP command timeout (applies to every account).
+	errs = appendErr(errs, loadDuration(envPrefix+"IMAP_TIMEOUT", &cfg.IMAP.Timeout))
+
 	// ── Notify / Telegram ────────────────────────────────────────────
 	loadString(envPrefix+"TELEGRAM_BOT_TOKEN", &cfg.Notify.Telegram.BotToken)
 	errs = appendErr(errs, loadInt64(envPrefix+"TELEGRAM_CHAT_ID", &cfg.Notify.Telegram.ChatID))
@@ -66,6 +69,7 @@ func loadEnv(cfg *Config) error {
 	// ── Concurrency ──────────────────────────────────────────────────
 	errs = appendErr(errs, loadInt(envPrefix+"CONCURRENCY_MAX_ACCOUNTS", &cfg.Concurrency.MaxAccounts))
 	errs = appendErr(errs, loadInt(envPrefix+"CONCURRENCY_MAX_LLM_CALLS", &cfg.Concurrency.MaxLLMCalls))
+	errs = appendErr(errs, loadInt(envPrefix+"CONCURRENCY_FETCH_BATCH_SIZE", &cfg.Concurrency.FetchBatchSize))
 
 	return errors.Join(errs...)
 }

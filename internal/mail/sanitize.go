@@ -567,6 +567,42 @@ func DecodeEntities(s string) string { //nolint:gocyclo
 	return b.String()
 }
 
+// SanitizeHeader cleans a short header field (e.g. Subject) for safe inclusion
+// in prompts and digests. It removes any HTML markup, strips C0/C1 control
+// characters, decodes common HTML entities, and trims whitespace — preserving
+// readable text content.
+//
+// Header values are attacker-controlled (a sender can put arbitrary markup,
+// entities, or control bytes in a Subject), so they go through the same
+// pipeline used for message bodies.
+//
+// NOTE: do not use this on already-formatted address fields ("Name
+// <addr@host>") — the angle-bracketed address would be mistaken for an HTML
+// tag and stripped. Use SanitizeAddressField for those.
+func SanitizeHeader(s string) string {
+	if s == "" {
+		return ""
+	}
+	s = StripHTML(s)
+	s = StripControlChars(s)
+	s = DecodeEntities(s)
+	return strings.TrimSpace(s)
+}
+
+// SanitizeAddressField cleans a rendered address field ("Name <addr@host>")
+// for safe inclusion in prompts and digests. It strips C0/C1 control
+// characters and decodes HTML entities but does NOT strip HTML tags, because
+// the angle-bracketed address would otherwise be removed by tag stripping.
+// Markup inside the personal name is handled separately by formatAddress.
+func SanitizeAddressField(s string) string {
+	if s == "" {
+		return ""
+	}
+	s = StripControlChars(s)
+	s = DecodeEntities(s)
+	return strings.TrimSpace(s)
+}
+
 // ConvertCharset reads all content from r, decodes it from the charset
 // specified in contentType (e.g. "text/plain; charset=ISO-8859-1"), and
 // returns the result as a UTF-8 string. If contentType is empty or has no

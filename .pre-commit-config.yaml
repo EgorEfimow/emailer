@@ -1,3 +1,35 @@
-# Pre-commit hooks — gitleaks removed because Docker is unavailable
-# on local dev machines. Gitleaks still runs in CI (see .github/workflows/ci.yml).
-repos: []
+repos:
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        description: Run golangci-lint on Go files
+        entry: golangci-lint run --fix
+        types: [go]
+        language: system
+        pass_filenames: false
+
+      - id: go-vet
+        name: go vet
+        description: Run go vet to catch suspicious constructs
+        entry: go vet ./...
+        types: [go]
+        language: system
+        pass_filenames: false
+
+      - id: go-test
+        name: go test
+        description: Run all tests with race detector
+        entry: go test -v -race ./...
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        description: Ensure go.mod and go.sum are clean
+        entry: go mod tidy
+        language: system
+        pass_filenames: false
+        files: 'go\.(mod|sum)$'

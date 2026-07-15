@@ -30,6 +30,7 @@ func DefaultConfig() Config {
 
 		IMAP: IMAPConfig{
 			Accounts: nil,
+			Timeout:  30 * time.Second,
 		},
 
 		Notify: NotifyConfig{
@@ -59,8 +60,9 @@ func DefaultConfig() Config {
 		},
 
 		Concurrency: ConcurrencyConfig{
-			MaxAccounts: 4,
-			MaxLLMCalls: 4,
+			MaxAccounts:    4,
+			MaxLLMCalls:    4,
+			FetchBatchSize: 10,
 		},
 	}
 }

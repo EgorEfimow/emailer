@@ -87,7 +87,7 @@ func TestIMAPClient_Integration_AllEmails(t *testing.T) { //nolint:gocyclo
 		UseTLS:   false,
 	}
 
-	client := NewIMAPClient()
+	client := newTestClient(t)
 	if err := client.Dial(ctx, account); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestIMAPClient_Integration_AllEmails(t *testing.T) { //nolint:gocyclo
 
 	// ---- Fetch headers ---------------------------------------------------
 
-	msgs, err := client.fetchHeaders(ctx, uids)
+	msgs, err := client.fetchHeaders(ctx, uids, 0)
 	if err != nil {
 		t.Fatalf("fetchHeaders: %v", err)
 	}
@@ -234,12 +234,12 @@ func TestIMAPClient_ApplyFlags_Integration(t *testing.T) { //nolint:gocyclo
 		UseTLS:   false,
 	}
 
-	client := NewIMAPClient()
+	client := newTestClient(t)
 	if err := client.Dial(ctx, account); err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
 	// Use a separate client for verification so we can close the flag client first.
-	verifyClient := NewIMAPClient()
+	verifyClient := newTestClient(t)
 	if err := verifyClient.Dial(ctx, account); err != nil {
 		t.Fatalf("Dial (verify): %v", err)
 	}
@@ -277,7 +277,7 @@ func TestIMAPClient_ApplyFlags_Integration(t *testing.T) { //nolint:gocyclo
 	}
 
 	// Fetch headers for all 3 messages to see their flags.
-	msgs, err := verifyClient.fetchHeaders(ctx, []uint32{1, 2, 3})
+	msgs, err := verifyClient.fetchHeaders(ctx, []uint32{1, 2, 3}, 0)
 	if err != nil {
 		t.Fatalf("fetchHeaders (verify): %v", err)
 	}

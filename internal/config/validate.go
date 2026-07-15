@@ -72,6 +72,9 @@ func validateIMAPConfig(c IMAPConfig) (errs []error) {
 	if len(c.Accounts) == 0 {
 		errs = append(errs, errors.New("imap.accounts: at least one account is required"))
 	}
+	if c.Timeout < 0 {
+		errs = append(errs, fmt.Errorf("imap.timeout must be non-negative, got %v", c.Timeout))
+	}
 	for i := range c.Accounts {
 		c.Accounts[i].normalize()
 		errs = append(errs, validateIMAPAccount(i, c.Accounts[i])...)
@@ -182,6 +185,9 @@ func validateConcurrencyConfig(c ConcurrencyConfig) (errs []error) {
 	}
 	if c.MaxLLMCalls <= 0 {
 		errs = append(errs, fmt.Errorf("concurrency.max_llm_calls must be positive, got %d", c.MaxLLMCalls))
+	}
+	if c.FetchBatchSize < 0 {
+		errs = append(errs, fmt.Errorf("concurrency.fetch_batch_size must be non-negative, got %d", c.FetchBatchSize))
 	}
 	return errs
 }

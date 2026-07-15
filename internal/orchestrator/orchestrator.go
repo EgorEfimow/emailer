@@ -195,6 +195,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 	fetchOpts := mail.FetchOptions{
 		Since:           since,
 		FetchUnreadOnly: p.cfg.FetchUnreadOnly,
+		BatchSize:       p.cfg.Concurrency.FetchBatchSize,
 	}
 	fetchResults := mail.FetchAll(
 		ctx, p.cfg.IMAP.Accounts, p.ingesters, fetchOpts,

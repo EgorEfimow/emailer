@@ -459,6 +459,58 @@ func TestStripHTML_MixedCaseScript(t *testing.T) {
 		t.Errorf("StripHTML(%q) = %q, want %q", input, got, want)
 	}
 }
+func TestSanitizeHeader(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty", input: "", want: ""},
+		{name: "plain", input: "Hello world", want: "Hello world"},
+		{name: "html tags stripped", input: "Sale <b>50%</b> off", want: "Sale 50% off"},
+		{name: "script removed", input: "Hi<script>alert(1)</script> there", want: "Hi there"},
+		{name: "entities decoded", input: "AT&amp;T &lt;price&gt;", want: "AT&T <price>"},
+		{name: "control chars stripped", input: "a\x00b\x1Bc", want: "abc"},
+		{
+			name:  "block tags collapsed",
+			input: "<p>Quarterly</p><p>Report</p>",
+			want:  "Quarterly\nReport",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SanitizeHeader(tt.input); got != tt.want {
+				t.Errorf("SanitizeHeader(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeAddressField(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty", input: "", want: ""},
+		{name: "plain address", input: "Bob <bob@example.com>", want: "Bob <bob@example.com>"},
+		{name: "control chars stripped", input: "Bob\x01 <bob@example.com>", want: "Bob <bob@example.com>"},
+		{name: "entities decoded in name", input: "AT&amp;T <a@b.com>", want: "AT&T <a@b.com>"},
+		{
+			name:  "angle-bracket address preserved",
+			input: "Name <a@b.com>",
+			want:  "Name <a@b.com>",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SanitizeAddressField(tt.input); got != tt.want {
+				t.Errorf("SanitizeAddressField(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripControlChars_Empty(t *testing.T) {
 	if got := StripControlChars(""); got != "" {
 		t.Errorf("StripControlChars(\"\") = %q, want empty", got)

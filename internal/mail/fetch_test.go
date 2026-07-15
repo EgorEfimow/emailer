@@ -7,10 +7,46 @@ import (
 	"github.com/emersion/go-imap"
 )
 
-func TestFetchHeaders_NotConnected(t *testing.T) {
-	c := NewIMAPClient()
+func TestChunkUIDs(t *testing.T) {
+	make := func(n int) []uint32 {
+		u := make([]uint32, n)
+		for i := range u {
+			u[i] = uint32(i + 1)
+		}
+		return u
+	}
 
-	_, err := c.fetchHeaders(context.Background(), []uint32{1, 2, 3})
+	tests := []struct {
+		name     string
+		uids     []uint32
+		size     int
+		wantN    int
+		wantLast int
+	}{
+		{name: "empty, size 10", uids: nil, size: 10, wantN: 1, wantLast: 0},
+		{name: "exact multiple", uids: make(20), size: 10, wantN: 2, wantLast: 10},
+		{name: "remainder", uids: make(25), size: 10, wantN: 3, wantLast: 5},
+		{name: "size larger than input", uids: make(3), size: 10, wantN: 1, wantLast: 3},
+		{name: "non-positive size", uids: make(25), size: 0, wantN: 1, wantLast: 25},
+		{name: "single uid", uids: make(1), size: 10, wantN: 1, wantLast: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chunks := chunkUIDs(tt.uids, tt.size)
+			if len(chunks) != tt.wantN {
+				t.Fatalf("chunkUIDs len = %d, want %d", len(chunks), tt.wantN)
+			}
+			if len(chunks[len(chunks)-1]) != tt.wantLast {
+				t.Errorf("last chunk size = %d, want %d", len(chunks[len(chunks)-1]), tt.wantLast)
+			}
+		})
+	}
+}
+
+func TestFetchHeaders_NotConnected(t *testing.T) {
+	c := newTestClient(t)
+
+	_, err := c.fetchHeaders(context.Background(), []uint32{1, 2, 3}, 0)
 	if err == nil {
 		t.Fatal("expected error from fetchHeaders when not connected")
 	}

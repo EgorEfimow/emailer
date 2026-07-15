@@ -89,6 +89,8 @@ internal/
 - Schema sections: `llm`, `imap`, `notify` (wraps `telegram`), `storage`, `digest`, `labels`, `prompts`, `concurrency`.
 - Setting: `FetchUnreadOnly` (boolean, default `false`).
 - Setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM after prolonged host downtime.
+- Setting: `imap.timeout` (duration, default `30s`). Bounds each IMAP command (dial, login, select, fetch, store); `0` disables the timeout.
+- Setting: `concurrency.fetch_batch_size` (int, default `10`). UIDs fetched per IMAP UID FETCH command; `0` falls back to the default.
 
 ### 5.2 State Store (`internal/store`)
 
@@ -113,8 +115,12 @@ internal/
 - One persistent IMAP client per account per run (single dial for fetch + flag).
 - Authentication via app passwords exclusively (no OAuth2 flows).
 - Configurable folder list per account (default `INBOX`).
+- **Command timeouts**: every IMAP command is bounded by `imap.timeout` (default `30s`) via the client's `Timeout` field.
+- **Reconnection**: a dropped connection triggers a single reconnect-and-retry (re-Dial + re-Login) on the next operation, bound to the request context. Connection-level errors (EOF, closed, timeout, broken pipe) are detected and retried once.
 - **Fetch Mode**: Fetches ALL emails in the time window by default. Conditionally applies the `UNSEEN` flag to the IMAP search criteria if `FetchUnreadOnly` is `true`.
+- **Batched fetch**: the UIDs returned by the search are retrieved in batches of `concurrency.fetch_batch_size` (default 10) per UID FETCH command, bounding per-command memory and duration.
 - **Metadata Capture**: Captures the `\Seen` flag during fetch to determine if an email was read or unread, persisting this to the `processed_messages` table.
+- **Header sanitization**: `Subject`, `From`, and `To` header fields are sanitized before classification/digest rendering — HTML markup is stripped, C0/C1 control characters removed, and HTML entities decoded — so attacker-controlled header values cannot inject markup into prompts or digests.
 - MIME-aware body extraction with charset conversion to UTF-8.
 - Concurrency: bounded worker pool, default `min(len(accounts), 4)`.
 
@@ -137,7 +143,9 @@ internal/
 ### 5.5 Act Service (`internal/mail`)
 
 - Custom IMAP keywords (no backslash prefix): `Useful`, `ToDelete`, `Ads`, plus user-defined.
+- **PERMANENTFLAGS check**: before storing a custom keyword, `ApplyFlags` consults the selected folder's `PERMANENTFLAGS`. Keywords not permitted by the server (and without the `\*` wildcard) are skipped and logged as a warning. System flags (leading backslash) are always permitted.
 - Flag writes batched per account in a single `UID STORE`.
+- A dropped connection during flag application triggers a single reconnect-and-retry (see §5.3).
 
 ### 5.6 Digest Renderers (`internal/digest`)
 

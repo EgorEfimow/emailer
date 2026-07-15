@@ -124,7 +124,12 @@ func run() int { //nolint:gocyclo
 	var imapClients []*mail.IMAPClient
 
 	for _, acct := range cfg.IMAP.Accounts {
-		cli := mail.NewIMAPClient()
+		cli, err := mail.NewIMAPClient(logger, cfg.IMAP.Timeout)
+		if err != nil {
+			logger.Error("imap: failed to create client", slog.Any("error", err))
+			fmt.Fprintf(os.Stderr, "imap client error: %v\n", err)
+			return 1
+		}
 
 		if err := cli.Dial(ctx, acct); err != nil {
 			logger.Error("imap: dial failed",

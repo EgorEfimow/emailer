@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"strings"
 
@@ -28,7 +29,7 @@ type BodyResult struct {
 //
 // Returns a map from UID to parsing result. UIDs whose bodies could not be
 // fetched or parsed are omitted from the map; their errors are collected.
-func (c *IMAPClient) fetchBody(ctx context.Context, uids []uint32) (map[uint32]BodyResult, error) {
+func (c *IMAPClient) fetchBody(ctx context.Context, uids []uint32, batchSize int) (map[uint32]BodyResult, error) {
 	if c.cli == nil {
 		return nil, fmt.Errorf("imap.fetch_body: not connected")
 	}
@@ -36,44 +37,50 @@ func (c *IMAPClient) fetchBody(ctx context.Context, uids []uint32) (map[uint32]B
 		return nil, nil
 	}
 
-	seqset := new(imap.SeqSet)
-	seqset.AddNum(uids...)
-
 	// BODY.PEEK[] — fetch the full message without setting \Seen.
 	bodySection := &imap.BodySectionName{Peek: true}
-	// items := []imap.FetchItem{bodySection.FetchItem()}
 	items := []imap.FetchItem{imap.FetchUid, bodySection.FetchItem()}
-
-	ch := make(chan *imap.Message, 10)
-	done := make(chan error, 1)
-
-	go func() {
-		done <- c.cli.UidFetch(seqset, items, ch)
-	}()
 
 	results := make(map[uint32]BodyResult, len(uids))
 	var errs []string
 
-	for msg := range ch {
-		bodyLiteral := msg.GetBody(bodySection)
-		if bodyLiteral == nil {
-			errs = append(errs, fmt.Sprintf("uid %d: no body section returned", msg.Uid))
-			continue
+	for _, chunk := range chunkUIDs(uids, batchSize) {
+		seqset := new(imap.SeqSet)
+		seqset.AddNum(chunk...)
+
+		ch := make(chan *imap.Message, len(chunk))
+		done := make(chan error, 1)
+
+		go func() {
+			done <- c.cli.UidFetch(seqset, items, ch)
+		}()
+
+		for msg := range ch {
+			bodyLiteral := msg.GetBody(bodySection)
+			if bodyLiteral == nil {
+				c.logger.Warn("imap.fetch_body: no body section returned",
+					slog.Uint64("uid", uint64(msg.Uid)))
+				errs = append(errs, fmt.Sprintf("uid %d: no body section returned", msg.Uid))
+				continue
+			}
+
+			body, attachments, parseErr := readBody(bodyLiteral, "")
+			if parseErr != nil {
+				c.logger.Warn("imap.fetch_body: failed to parse body",
+					slog.Uint64("uid", uint64(msg.Uid)),
+					slog.Any("error", parseErr))
+				errs = append(errs, fmt.Sprintf("uid %d: parse body: %v", msg.Uid, parseErr))
+			}
+
+			results[msg.Uid] = BodyResult{
+				Body:        body,
+				Attachments: attachments,
+			}
 		}
 
-		body, attachments, parseErr := readBody(bodyLiteral, "")
-		if parseErr != nil {
-			errs = append(errs, fmt.Sprintf("uid %d: parse body: %v", msg.Uid, parseErr))
+		if err := <-done; err != nil {
+			return nil, fmt.Errorf("imap.uid_fetch_body: %w", err)
 		}
-
-		results[msg.Uid] = BodyResult{
-			Body:        body,
-			Attachments: attachments,
-		}
-	}
-
-	if err := <-done; err != nil {
-		return nil, fmt.Errorf("imap.uid_fetch_body: %w", err)
 	}
 
 	if len(errs) > 0 {

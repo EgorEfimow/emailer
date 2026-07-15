@@ -226,7 +226,7 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [ ] 14.3 Run `go test -race ./...`.
 - [ ] 14.4 Audit all error paths for log coverage.
 - [ ] 14.5 Audit all secrets for redaction coverage.
-- [ ] 14.6 Audit all network calls for timeout and retry.
+- [x] 14.6 Audit all network calls for timeout and retry.
 - [ ] 14.7 Verify `architecture.md`, `AGENTS.md`, `planning.md` reflect final state.
 
 ## Phase 15 — Release

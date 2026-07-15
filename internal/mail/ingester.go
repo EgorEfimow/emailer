@@ -40,4 +40,9 @@ type FetchOptions struct {
 	// Folders limits the search to specific mailbox folders. If empty,
 	// the account's configured folders are used.
 	Folders []string
+
+	// BatchSize limits how many UIDs are fetched per IMAP UID FETCH
+	// command. 0 falls back to the default (10). Larger batches use fewer
+	// round-trips; smaller batches bound per-command memory and duration.
+	BatchSize int
 }
