@@ -1,0 +1,1 @@
+{"id": "cmpl-empty", "object": "chat.completion", "model": "mistral-large-latest", "choices": [], "usage": {"prompt_tokens": 100, "completion_tokens": 0, "total_tokens": 100}}

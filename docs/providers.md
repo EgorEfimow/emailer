@@ -17,8 +17,9 @@ type Provider interface {
 | Gemini | `gemini` | `x-goog-api-key` header | `gemini-2.0-flash` |
 | Ollama | `ollama` | not required (local) | `llama3.2` |
 | OpenRouter | `openrouter` | `Authorization: Bearer` header | `openai/gpt-4o` |
+| Mistral | `mistral` | `Authorization: Bearer` header | `mistral-large-latest` |
 
-> Built-in providers: **Gemini**, **Ollama**, **OpenRouter**. Each follows the
+> Built-in providers: **Gemini**, **Ollama**, **OpenRouter**, **Mistral**. Each follows the
 > same registry pattern described below.
 
 ## Gemini
@@ -134,6 +135,44 @@ Any model available through OpenRouter, such as:
 - `openai/gpt-4-turbo`
 - `anthropic/claude-3.5-sonnet`
 - `meta-llama/llama-3.1-405b`
+
+### API Key Security
+
+The API key is sent via the `Authorization: Bearer` header and is redacted
+from all logs.
+
+## Mistral
+
+Mistral AI provides an OpenAI-compatible API for their models.
+
+### Setup
+
+1. Get an API key from [Mistral Console](https://console.mistral.ai/).
+2. Configure the agent:
+
+```yaml
+llm:
+  provider: mistral
+  api_key: "your-mistral-api-key"
+  model: mistral-large-latest
+```
+
+Or via environment:
+
+```bash
+export EMAILER_LLM_PROVIDER=mistral
+export EMAILER_LLM_API_KEY=your-mistral-api-key
+export EMAILER_LLM_MODEL=mistral-large-latest
+```
+
+### Supported Models
+
+Any model available through the Mistral API, such as:
+
+- `mistral-large-latest`
+- `mistral-small-latest`
+- `mistral-medium-latest`
+- `pixtral-large-latest`
 
 ### API Key Security
 

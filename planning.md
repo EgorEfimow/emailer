@@ -201,6 +201,16 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [x] 9a.5 Add HTTP fixtures under `testdata/openrouter/` and contract tests.
 - [x] 9a.6 Update `architecture.md` §5.4, `planning.md`, `.env.example`, `docs/providers.md`, and `TODO.md` with OpenRouter notes (no `validateLLMConfig` change required — OpenRouter falls under the default "api_key required" branch).
 
+## Phase 9b — Mistral LLM Provider
+
+### Branch: `feat/llm-mistral`
+- [ ] 9b.1 Register Mistral in the provider registry.
+- [ ] 9b.2 Implement `internal/llm/mistral.Provider` with `Factory`, `Name()`, `Classify()`.
+- [ ] 9b.3 Use Mistral's `/v1/chat/completions` endpoint with system + user messages (OpenAI-compatible wire format).
+- [ ] 9b.4 Require non-empty API key sent via `Authorization: Bearer` header (never in URL).
+- [ ] 9b.5 Add HTTP fixtures under `testdata/mistral/` and contract tests.
+- [ ] 9b.6 Update `architecture.md` §5.4, `planning.md`, `.env.example`, `docs/providers.md` with Mistral notes (no `validateLLMConfig` change required — Mistral falls under the default "api_key required" branch).
+
 ## Phase 10 — LLM Response Schema Versioning
 
 ### Branch: `feat/llm-schema-version`
