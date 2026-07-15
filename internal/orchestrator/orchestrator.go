@@ -273,7 +273,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result {
 		classifications = llmResponse.Classifications
 	}
 
-	digestData := p.buildDigestData(run.ID, messages, classifications)
+	digestData := p.buildDigestData(run.ID, messages, classifications, fetchResults)
 	result.TotalClassified = len(digestData.Messages)
 	result.FailedCount = digestData.FailedCount
 
@@ -460,7 +460,7 @@ func (p *Pipeline) messagesToInputs(messages []mail.Message) []llm.InputMessage 
 // buildDigestData constructs a digest.DigestData from the fetched messages
 // and LLM classifications. When classifications are nil (LLM failure), the
 // digest data is built without classification data for the fallback renderer.
-func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classifications []mail.Classification) digest.DigestData {
+func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classifications []mail.Classification, fetchResults []mail.FetchAllResult) digest.DigestData {
 	// Build a lookup map from the classification key.
 	classMap := make(map[mail.MessageKey]mail.Classification, len(classifications))
 	for _, c := range classifications {
@@ -488,14 +488,85 @@ func (p *Pipeline) buildDigestData(runID string, messages []mail.Message, classi
 		})
 	}
 
+	globalStats, accountStats := buildDigestStats(messages, entries, classifications, fetchResults)
+
 	return digest.DigestData{
 		RunID:           runID,
 		GeneratedAt:     p.now(),
 		Messages:        entries,
-		TotalFetched:    len(messages),
-		TotalClassified: len(classifications),
-		FailedCount:     failedCount,
+		TotalFetched:    globalStats.FetchedCount,
+		TotalClassified: globalStats.ClassifiedCount,
+		FailedCount:     globalStats.FailedCount,
+		GlobalStats:     globalStats,
+		AccountStats:    accountStats,
 	}
+}
+
+func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, classifications []mail.Classification, fetchResults []mail.FetchAllResult) (digest.DigestStats, []digest.AccountStats) {
+	global := digest.DigestStats{
+		FetchedCount:    len(messages),
+		ClassifiedCount: len(classifications),
+		CountsByLabel:   make(map[string]int),
+	}
+	classifiedKeys := make(map[mail.MessageKey]bool, len(classifications))
+	for _, classification := range classifications {
+		classifiedKeys[classification.Key] = true
+	}
+
+	accountByLabel := make(map[string]*digest.AccountStats)
+	accountOrder := make([]string, 0)
+	ensureAccount := func(label string) *digest.AccountStats {
+		if stats, ok := accountByLabel[label]; ok {
+			return stats
+		}
+		accountByLabel[label] = &digest.AccountStats{
+			AccountLabel:  label,
+			CountsByLabel: make(map[string]int),
+		}
+		accountOrder = append(accountOrder, label)
+		return accountByLabel[label]
+	}
+
+	for _, r := range fetchResults {
+		stats := ensureAccount(r.Account.Label)
+		if r.Err != nil {
+			stats.FetchError = r.Err.Error()
+		}
+	}
+
+	for _, m := range messages {
+		stats := ensureAccount(m.AccountLabel)
+		stats.FetchedCount++
+		if m.IsRead {
+			global.ReadCount++
+			stats.ReadCount++
+		} else {
+			global.UnreadCount++
+			stats.UnreadCount++
+		}
+	}
+
+	for _, entry := range entries {
+		label := entry.Classification.Label
+		if label == "" {
+			label = "Unknown"
+		}
+		global.CountsByLabel[label]++
+		stats := ensureAccount(entry.Classification.Key.AccountLabel)
+		stats.CountsByLabel[label]++
+		if classifiedKeys[entry.Classification.Key] {
+			stats.ClassifiedCount++
+		} else {
+			global.FailedCount++
+			stats.FailedCount++
+		}
+	}
+
+	accounts := make([]digest.AccountStats, 0, len(accountOrder))
+	for _, label := range accountOrder {
+		accounts = append(accounts, *accountByLabel[label])
+	}
+	return global, accounts
 }
 
 // ---------------------------------------------------------------------------

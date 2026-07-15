@@ -45,17 +45,44 @@ func (r *MarkdownRenderer) Name() string {
 func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, error) {
 	tmpl, err := template.New("digest").
 		Funcs(template.FuncMap{
-			"formatTime": formatTime,
-			"readBadge":  r.readBadge,
-			"truncate":   r.truncate,
-			"joinLabels": joinLabels,
-			"add1":       func(n int) int { return n + 1 },
-			"mul":        func(a, b float64) float64 { return a * b },
-			"now":        time.Now,
+			"formatTime":  formatTime,
+			"readBadge":   r.readBadge,
+			"truncate":    r.truncate,
+			"joinLabels":  joinLabels,
+			"labelCounts": labelCounts,
+			"add1":        func(n int) int { return n + 1 },
+			"mul":         func(a, b float64) float64 { return a * b },
+			"now":         time.Now,
 		}).
 		Parse(markdownTemplate)
 	if err != nil {
 		return "", fmt.Errorf("digest.markdown.parse_template: %w", err)
+	}
+
+	stats := data.GlobalStats
+	if stats.FetchedCount == 0 && data.TotalFetched > 0 {
+		stats.FetchedCount = data.TotalFetched
+	}
+	if stats.ClassifiedCount == 0 && data.TotalClassified > 0 {
+		stats.ClassifiedCount = data.TotalClassified
+	}
+	if stats.FailedCount == 0 && data.FailedCount > 0 {
+		stats.FailedCount = data.FailedCount
+	}
+	if stats.CountsByLabel == nil {
+		stats.CountsByLabel = make(map[string]int)
+		for _, msg := range data.Messages {
+			label := msg.Classification.Label
+			if label == "" {
+				label = "Unknown"
+			}
+			stats.CountsByLabel[label]++
+			if msg.IsRead {
+				stats.ReadCount++
+			} else {
+				stats.UnreadCount++
+			}
+		}
 	}
 
 	// Group messages by classification label.
@@ -69,15 +96,17 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, map[string]any{
-		"RunID":        data.RunID,
-		"GeneratedAt":  data.GeneratedAt,
-		"AccountLabel": data.AccountLabel,
-		"TotalFetched": data.TotalFetched,
-		"TotalClassified": data.TotalClassified,
-		"FailedCount":  data.FailedCount,
-		"Groups":       groups,
-		"Labels":       labels,
-		"TotalMessages": len(data.Messages),
+		"RunID":             data.RunID,
+		"GeneratedAt":       data.GeneratedAt,
+		"AccountLabel":      data.AccountLabel,
+		"TotalFetched":      data.TotalFetched,
+		"TotalClassified":   data.TotalClassified,
+		"FailedCount":       data.FailedCount,
+		"Groups":            groups,
+		"Labels":            labels,
+		"TotalMessages":     len(data.Messages),
+		"GlobalStats":       stats,
+		"AccountStats":      data.AccountStats,
 		"IncludeReadStatus": r.IncludeReadStatus,
 	}); err != nil {
 		return "", fmt.Errorf("digest.markdown.execute: %w", err)
@@ -119,6 +148,27 @@ func joinLabels(labels []string) string {
 	return strings.Join(labels, ", ")
 }
 
+// labelCount is a stable display row for a label count map.
+type labelCount struct {
+	Label string
+	Count int
+}
+
+// labelCounts returns label counts sorted by label for deterministic rendering.
+func labelCounts(counts map[string]int) []labelCount {
+	labels := make([]string, 0, len(counts))
+	for label := range counts {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+
+	out := make([]labelCount, 0, len(labels))
+	for _, label := range labels {
+		out = append(out, labelCount{Label: label, Count: counts[label]})
+	}
+	return out
+}
+
 // groupByLabel groups message entries by their classification label.
 func groupByLabel(entries []MessageEntry) map[string][]MessageEntry {
 	groups := make(map[string][]MessageEntry)
@@ -145,7 +195,37 @@ const markdownTemplate = `# 📧 Email Digest
 {{- if .AccountLabel}}
 **Account:** {{.AccountLabel}}
 {{- end}}
+## Summary
+
+**Fetched:** {{.GlobalStats.FetchedCount}}
+**Classified:** {{.GlobalStats.ClassifiedCount}}
+**Failed:** {{.GlobalStats.FailedCount}}
+{{- if $.IncludeReadStatus}}
+**Read:** {{.GlobalStats.ReadCount}}
+**Unread:** {{.GlobalStats.UnreadCount}}
+{{- end}}
+**Labels:**{{range labelCounts .GlobalStats.CountsByLabel}} {{.Label}}={{.Count}}{{end}}
 **Messages:** {{.TotalMessages}} classified ({{.TotalFetched}} fetched, {{.FailedCount}} failed)
+
+## Account Stats
+
+{{- if .AccountStats}}
+{{- range .AccountStats}}
+### {{.AccountLabel}}
+
+**Fetched:** {{.FetchedCount}} | **Classified:** {{.ClassifiedCount}} | **Failed:** {{.FailedCount}}
+{{- if $.IncludeReadStatus}}
+**Read:** {{.ReadCount}} | **Unread:** {{.UnreadCount}}
+{{- end}}
+**Labels:**{{range labelCounts .CountsByLabel}} {{.Label}}={{.Count}}{{end}}
+{{- if .FetchError}}
+**Fetch error:** {{.FetchError}}
+{{- end}}
+
+{{- end}}
+{{- else}}
+No account stats available.
+{{- end}}
 
 ---
 
