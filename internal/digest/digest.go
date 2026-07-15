@@ -26,18 +26,46 @@ type MessageEntry struct {
 }
 
 // ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+
+// DigestStats captures aggregate counts for a digest run.
+type DigestStats struct {
+	FetchedCount    int
+	ClassifiedCount int
+	FailedCount     int
+	ReadCount       int
+	UnreadCount     int
+	CountsByLabel   map[string]int
+}
+
+// AccountStats captures aggregate counts and fetch status for one account.
+type AccountStats struct {
+	AccountLabel    string
+	FetchedCount    int
+	ClassifiedCount int
+	FailedCount     int
+	ReadCount       int
+	UnreadCount     int
+	CountsByLabel   map[string]int
+	FetchError      string
+}
+
+// ---------------------------------------------------------------------------
 // DigestData
 // ---------------------------------------------------------------------------
 
 // DigestData is the input data for a digest renderer.
 type DigestData struct {
-	RunID        string
-	GeneratedAt  time.Time
-	AccountLabel string
-	Messages     []MessageEntry
-	TotalFetched int
+	RunID           string
+	GeneratedAt     time.Time
+	AccountLabel    string
+	Messages        []MessageEntry
+	TotalFetched    int
 	TotalClassified int
-	FailedCount  int
+	FailedCount     int
+	GlobalStats     DigestStats
+	AccountStats    []AccountStats
 }
 
 // ---------------------------------------------------------------------------

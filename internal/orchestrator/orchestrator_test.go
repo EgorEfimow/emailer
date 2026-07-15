@@ -323,11 +323,11 @@ func TestResultDefaults(t *testing.T) {
 
 func TestResultWithValues(t *testing.T) {
 	r := Result{
-		RunID:          "run-123",
-		Status:         store.RunStatusCompleted,
-		TotalFetched:   10,
+		RunID:           "run-123",
+		Status:          store.RunStatusCompleted,
+		TotalFetched:    10,
 		TotalClassified: 8,
-		FailedCount:    2,
+		FailedCount:     2,
 	}
 	if r.RunID != "run-123" {
 		t.Errorf("expected run-123, got %q", r.RunID)
@@ -789,7 +789,7 @@ func TestBuildDigestData(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications)
+	data := p.buildDigestData("run-1", msgs, classifications, nil)
 
 	if data.RunID != "run-1" {
 		t.Errorf("expected run-1, got %q", data.RunID)
@@ -822,7 +822,7 @@ func TestBuildDigestDataWithoutClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, nil)
+	data := p.buildDigestData("run-1", msgs, nil, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -851,7 +851,7 @@ func TestBuildDigestDataPartialClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications)
+	data := p.buildDigestData("run-1", msgs, classifications, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -864,6 +864,49 @@ func TestBuildDigestDataPartialClassifications(t *testing.T) {
 	}
 	if data.FailedCount != 1 {
 		t.Errorf("expected 1 failed, got %d", data.FailedCount)
+	}
+}
+
+func TestBuildDigestDataAggregatesStats(t *testing.T) {
+	now := time.Now()
+	msgs := []mail.Message{
+		{AccountLabel: "work", UID: 1, Subject: "A", Body: "Body", Date: now, IsRead: true},
+		{AccountLabel: "work", UID: 2, Subject: "B", Body: "Body", Date: now, IsRead: false},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 1}, Label: "Useful", Confidence: 0.9},
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "work"}, Messages: msgs},
+		{Account: config.IMAPAccount{Label: "personal"}, Err: errors.New("connection refused")},
+	}
+
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults)
+
+	if data.GlobalStats.FetchedCount != 2 {
+		t.Errorf("expected 2 global fetched, got %d", data.GlobalStats.FetchedCount)
+	}
+	if data.GlobalStats.ClassifiedCount != 1 {
+		t.Errorf("expected 1 global classified, got %d", data.GlobalStats.ClassifiedCount)
+	}
+	if data.GlobalStats.FailedCount != 1 {
+		t.Errorf("expected 1 global failed, got %d", data.GlobalStats.FailedCount)
+	}
+	if data.GlobalStats.ReadCount != 1 || data.GlobalStats.UnreadCount != 1 {
+		t.Errorf("expected 1 read and 1 unread, got %d read and %d unread", data.GlobalStats.ReadCount, data.GlobalStats.UnreadCount)
+	}
+	if data.GlobalStats.CountsByLabel["Useful"] != 1 || data.GlobalStats.CountsByLabel["Unknown"] != 1 {
+		t.Errorf("unexpected global label counts: %#v", data.GlobalStats.CountsByLabel)
+	}
+	if len(data.AccountStats) != 2 {
+		t.Fatalf("expected 2 account stats, got %d", len(data.AccountStats))
+	}
+	if data.AccountStats[0].AccountLabel != "work" || data.AccountStats[0].FetchedCount != 2 || data.AccountStats[0].ClassifiedCount != 1 || data.AccountStats[0].FailedCount != 1 {
+		t.Errorf("unexpected work account stats: %#v", data.AccountStats[0])
+	}
+	if data.AccountStats[1].AccountLabel != "personal" || data.AccountStats[1].FetchError == "" {
+		t.Errorf("unexpected personal account stats: %#v", data.AccountStats[1])
 	}
 }
 

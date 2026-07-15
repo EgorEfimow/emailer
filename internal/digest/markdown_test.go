@@ -14,12 +14,12 @@ func TestMarkdownRenderer_HappyPath(t *testing.T) {
 	r := NewMarkdownRenderer(true, 200)
 
 	data := DigestData{
-		RunID:        "run-abc-123",
-		GeneratedAt:  now,
-		AccountLabel: "work",
-		TotalFetched: 3,
+		RunID:           "run-abc-123",
+		GeneratedAt:     now,
+		AccountLabel:    "work",
+		TotalFetched:    3,
 		TotalClassified: 2,
-		FailedCount:  0,
+		FailedCount:     0,
 		Messages: []MessageEntry{
 			{
 				Subject: "Project Update",
@@ -347,5 +347,103 @@ func TestMarkdownRenderer_ContextCancelled(t *testing.T) {
 		// Context cancellation is not expected to cause errors in template
 		// rendering, but if it does, it should be a non-fatal error.
 		t.Logf("Render() with cancelled context returned error: %v", err)
+	}
+}
+func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:           "run-stats",
+		GeneratedAt:     now,
+		TotalFetched:    3,
+		TotalClassified: 2,
+		FailedCount:     1,
+		GlobalStats: DigestStats{
+			FetchedCount:    3,
+			ClassifiedCount: 2,
+			FailedCount:     1,
+			ReadCount:       1,
+			UnreadCount:     2,
+			CountsByLabel: map[string]int{
+				"Ads":     1,
+				"Unknown": 1,
+				"Useful":  1,
+			},
+		},
+		AccountStats: []AccountStats{
+			{
+				AccountLabel:    "work",
+				FetchedCount:    2,
+				ClassifiedCount: 1,
+				FailedCount:     1,
+				ReadCount:       1,
+				UnreadCount:     1,
+				CountsByLabel: map[string]int{
+					"Unknown": 1,
+					"Useful":  1,
+				},
+			},
+			{
+				AccountLabel:    "personal",
+				FetchedCount:    1,
+				ClassifiedCount: 1,
+				UnreadCount:     1,
+				CountsByLabel: map[string]int{
+					"Ads": 1,
+				},
+				FetchError: "imap timeout",
+			},
+		},
+		Messages: []MessageEntry{
+			{
+				Subject: "Project update",
+				From:    "pm@example.com",
+				Date:    now,
+				IsRead:  true,
+				Classification: mail.Classification{
+					Label:      "Useful",
+					Confidence: 0.9,
+					Reason:     "Important",
+				},
+				Excerpt: "The project is on track.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	ordered := []string{
+		"## Summary",
+		"**Fetched:** 3",
+		"**Classified:** 2",
+		"**Failed:** 1",
+		"**Read:** 1",
+		"**Unread:** 2",
+		"**Labels:** Ads=1 Unknown=1 Useful=1",
+		"## Account Stats",
+		"### work",
+		"**Fetched:** 2 | **Classified:** 1 | **Failed:** 1",
+		"**Read:** 1 | **Unread:** 1",
+		"**Labels:** Unknown=1 Useful=1",
+		"### personal",
+		"**Fetch error:** imap timeout",
+		"## Useful (1)",
+		"### 1. Project update",
+	}
+
+	last := -1
+	for _, want := range ordered {
+		idx := strings.Index(result, want)
+		if idx == -1 {
+			t.Fatalf("result missing %q\n%s", want, result)
+		}
+		if idx < last {
+			t.Fatalf("%q rendered out of order\n%s", want, result)
+		}
+		last = idx
 	}
 }
