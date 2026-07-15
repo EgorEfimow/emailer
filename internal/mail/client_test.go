@@ -36,15 +36,13 @@ func TestIMAPClient_Close_WithoutDial(t *testing.T) {
 	}
 }
 
-func TestIMAPClient_Fetch_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic from unimplemented Fetch")
-		}
-	}()
-
+func TestIMAPClient_Fetch_NotConnected(t *testing.T) {
 	c := NewIMAPClient()
-	_, _ = c.Fetch(context.Background(), dummyAccount(), FetchOptions{})
+
+	_, err := c.Fetch(context.Background(), dummyAccount(), FetchOptions{})
+	if err == nil {
+		t.Fatal("expected error from Fetch when not connected")
+	}
 }
 
 func TestIMAPClient_ApplyFlags_NotConnected(t *testing.T) {
