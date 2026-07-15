@@ -63,39 +63,10 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 		return "", fmt.Errorf("digest.markdown.parse_template: %w", err)
 	}
 
-	stats := data.GlobalStats
-	if stats.FetchedCount == 0 && data.TotalFetched > 0 {
-		stats.FetchedCount = data.TotalFetched
-	}
-	if stats.ClassifiedCount == 0 && data.TotalClassified > 0 {
-		stats.ClassifiedCount = data.TotalClassified
-	}
-	if stats.FailedCount == 0 && data.FailedCount > 0 {
-		stats.FailedCount = data.FailedCount
-	}
-	if stats.CountsByLabel == nil {
-		stats.CountsByLabel = make(map[string]int)
-		for _, msg := range data.Messages {
-			label := msg.Classification.Label
-			if label == "" {
-				label = "Unknown"
-			}
-			stats.CountsByLabel[label]++
-			if msg.IsRead {
-				stats.ReadCount++
-			} else {
-				stats.UnreadCount++
-			}
-		}
-	}
+	stats := r.prepareStats(data)
 
 	// Collect high-priority messages for the "Needs attention" section.
-	var highPriority []MessageEntry
-	for _, m := range data.Messages {
-		if strings.EqualFold(strings.TrimSpace(m.Classification.Priority), "high") {
-			highPriority = append(highPriority, m)
-		}
-	}
+	highPriority := collectHighPriorityMessages(data.Messages)
 
 	// Group messages by classification label.
 	groups := groupByLabel(data.Messages)
@@ -132,6 +103,51 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// prepareStats derives the global stats to render, filling in counts from the
+// DigestData totals when the provided stats are not fully populated (e.g. when
+// produced by the fallback renderer). It also computes label and read/unread
+// counts from the message list when CountsByLabel is absent.
+func (r *MarkdownRenderer) prepareStats(data DigestData) DigestStats {
+	stats := data.GlobalStats
+	if stats.FetchedCount == 0 && data.TotalFetched > 0 {
+		stats.FetchedCount = data.TotalFetched
+	}
+	if stats.ClassifiedCount == 0 && data.TotalClassified > 0 {
+		stats.ClassifiedCount = data.TotalClassified
+	}
+	if stats.FailedCount == 0 && data.FailedCount > 0 {
+		stats.FailedCount = data.FailedCount
+	}
+	if stats.CountsByLabel == nil {
+		stats.CountsByLabel = make(map[string]int)
+		for _, msg := range data.Messages {
+			label := msg.Classification.Label
+			if label == "" {
+				label = "Unknown"
+			}
+			stats.CountsByLabel[label]++
+			if msg.IsRead {
+				stats.ReadCount++
+			} else {
+				stats.UnreadCount++
+			}
+		}
+	}
+	return stats
+}
+
+// collectHighPriorityMessages returns the subset of entries whose classification
+// priority is "high" (case-insensitive), used for the "Needs attention" section.
+func collectHighPriorityMessages(messages []MessageEntry) []MessageEntry {
+	var high []MessageEntry
+	for _, m := range messages {
+		if strings.EqualFold(strings.TrimSpace(m.Classification.Priority), "high") {
+			high = append(high, m)
+		}
+	}
+	return high
+}
 
 // readBadge returns a short string indicating the read/unread status.
 func (r *MarkdownRenderer) readBadge(isRead bool) string {
