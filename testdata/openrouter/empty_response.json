@@ -1,0 +1,1 @@
+{"id": "chatcmpl-empty", "object": "chat.completion", "model": "openai/gpt-4o", "choices": [], "usage": {"prompt_tokens": 100, "completion_tokens": 0, "total_tokens": 100}}

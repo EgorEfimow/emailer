@@ -159,7 +159,7 @@ internal/
       Classify(ctx, Request) (Response, error)
   }
   ```
-- Built-in providers: **Gemini**, **Ollama**. OpenRouter is tracked as future work in [`TODO.md`](TODO.md) and registered via the same provider registry when implemented (see AGENTS.md §7).
+- Built-in providers: **Gemini**, **Ollama**, **OpenRouter**. New providers are added via the same provider registry (see AGENTS.md §7).
 - Composite key `(account_label, uid)` in every payload and response.
 - Prompt builder wraps each email in unique delimiters, includes metadata (Date, Read/Unread status), and isolates instructions.
 - **Schema versioning:** LLM responses include a top-level `schema_version` integer (currently `1`). The parser validates this field:

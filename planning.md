@@ -191,6 +191,16 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [x] 9.6 Update `validateLLMConfig` to allow empty API key for Ollama.
 - [x] 9.7 Update `architecture.md` §5.4 and `.env.example` with Ollama notes.
 
+## Phase 9a — OpenRouter LLM Provider
+
+### Branch: `feat/llm-openrouter`
+- [x] 9a.1 Register OpenRouter in the provider registry.
+- [x] 9a.2 Implement `internal/llm/openrouter.Provider` with `Factory`, `Name()`, `Classify()`.
+- [x] 9a.3 Use OpenRouter's `/chat/completions` endpoint with system + user messages (OpenAI-compatible wire format).
+- [x] 9a.4 Require non-empty API key sent via `Authorization: Bearer` header (never in URL).
+- [x] 9a.5 Add HTTP fixtures under `testdata/openrouter/` and contract tests.
+- [x] 9a.6 Update `architecture.md` §5.4, `planning.md`, `.env.example`, `docs/providers.md`, and `TODO.md` with OpenRouter notes (no `validateLLMConfig` change required — OpenRouter falls under the default "api_key required" branch).
+
 ## Phase 10 — LLM Response Schema Versioning
 
 ### Branch: `feat/llm-schema-version`

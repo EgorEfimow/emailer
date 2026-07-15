@@ -17,6 +17,7 @@ import (
 	"github.com/egorefimow/emailer/internal/llm"
 	"github.com/egorefimow/emailer/internal/llm/gemini"
 	"github.com/egorefimow/emailer/internal/llm/ollama"
+	"github.com/egorefimow/emailer/internal/llm/openrouter"
 	"github.com/egorefimow/emailer/internal/log"
 	"github.com/egorefimow/emailer/internal/mail"
 	"github.com/egorefimow/emailer/internal/notify"
@@ -189,7 +190,7 @@ func run() int { //nolint:gocyclo
 	providerRegistry := llm.NewProviderRegistry()
 	providerRegistry.Register("gemini", gemini.Factory)
 	providerRegistry.Register("ollama", ollama.Factory)
-	providerRegistry.Register("ollama", ollama.Factory)
+	providerRegistry.Register("openrouter", openrouter.Factory)
 
 	providerFactory := providerRegistry.Lookup(cfg.LLM.Provider)
 	if providerFactory == nil {

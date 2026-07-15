@@ -15,10 +15,11 @@ type Provider interface {
 | Provider | Identifier | API Key Location | Model Example |
 |----------|-----------|-----------------|---------------|
 | Gemini | `gemini` | `x-goog-api-key` header | `gemini-2.0-flash` |
+| Ollama | `ollama` | not required (local) | `llama3.2` |
+| OpenRouter | `openrouter` | `Authorization: Bearer` header | `openai/gpt-4o` |
 
-> Ollama and OpenRouter providers are tracked as future work in
-> [`TODO.md`](../TODO.md). Each future provider will follow the same
-> registry pattern described below.
+> Built-in providers: **Gemini**, **Ollama**, **OpenRouter**. Each follows the
+> same registry pattern described below.
 
 ## Gemini
 

@@ -10,7 +10,7 @@ the same commit (see `AGENTS.md` §13).
 ## Providers
 
 - [x] Ollama (`internal/llm/ollama`)
-- [ ] OpenRouter (`internal/llm/openrouter`)
+- [x] OpenRouter (`internal/llm/openrouter`)
 
 ## Packaging
 
