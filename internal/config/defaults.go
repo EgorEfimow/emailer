@@ -47,8 +47,18 @@ func DefaultConfig() Config {
 		},
 
 		Digest: DigestConfig{
-			MaxMessageExcerpt: 500,
-			IncludeReadStatus: true,
+			MaxMessageExcerpt:       500,
+			IncludeReadStatus:       true,
+			IncludeGlobalStats:      true,
+			IncludeAccountStats:     true,
+			IncludeSummaries:        true,
+			IncludeKeyPoints:        true,
+			IncludeActionItems:      true,
+			IncludeRawExcerptFallback: true,
+			MaxMessages:             100,
+			MaxKeyPointsPerMessage:  5,
+			MaxActionItemsPerMessage: 3,
+			PriorityOnly:            false,
 		},
 
 		Labels: LabelsConfig{

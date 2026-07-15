@@ -175,6 +175,19 @@ func validateDigestConfig(c DigestConfig) (errs []error) {
 	if c.MaxMessageExcerpt <= 0 {
 		errs = append(errs, fmt.Errorf("digest.max_message_excerpt must be positive, got %d", c.MaxMessageExcerpt))
 	}
+	if c.MaxMessages < 0 {
+		errs = append(errs, fmt.Errorf("digest.max_messages must be >= 0, got %d", c.MaxMessages))
+	}
+	if c.MaxKeyPointsPerMessage < 0 {
+		errs = append(errs, fmt.Errorf("digest.max_key_points_per_message must be >= 0, got %d", c.MaxKeyPointsPerMessage))
+	}
+	if c.MaxActionItemsPerMessage < 0 {
+		errs = append(errs, fmt.Errorf("digest.max_action_items_per_message must be >= 0, got %d", c.MaxActionItemsPerMessage))
+	}
+	// At least one data source must be enabled for message content.
+	if !c.IncludeSummaries && !c.IncludeRawExcerptFallback {
+		errs = append(errs, errors.New("digest: at least one of include_summaries or include_raw_excerpt_fallback must be true"))
+	}
 	return errs
 }
 

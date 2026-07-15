@@ -180,8 +180,18 @@ func TestLoadEnv_Digest(t *testing.T) {
 	cfg := DefaultConfig()
 
 	setEnv(t, map[string]string{
-		"EMAILER_DIGEST_MAX_MESSAGE_EXCERPT":  "1000",
-		"EMAILER_DIGEST_INCLUDE_READ_STATUS":  "false",
+		"EMAILER_DIGEST_MAX_MESSAGE_EXCERPT":       "1000",
+		"EMAILER_DIGEST_INCLUDE_READ_STATUS":       "false",
+		"EMAILER_DIGEST_INCLUDE_GLOBAL_STATS":      "false",
+		"EMAILER_DIGEST_INCLUDE_ACCOUNT_STATS":     "false",
+		"EMAILER_DIGEST_INCLUDE_SUMMARIES":         "false",
+		"EMAILER_DIGEST_INCLUDE_KEY_POINTS":        "false",
+		"EMAILER_DIGEST_INCLUDE_ACTION_ITEMS":      "false",
+		"EMAILER_DIGEST_INCLUDE_RAW_EXCERPT_FALLBACK": "false",
+		"EMAILER_DIGEST_MAX_MESSAGES":              "50",
+		"EMAILER_DIGEST_MAX_KEY_POINTS_PER_MESSAGE": "3",
+		"EMAILER_DIGEST_MAX_ACTION_ITEMS_PER_MESSAGE": "2",
+		"EMAILER_DIGEST_PRIORITY_ONLY":             "true",
 	})
 
 	if err := loadEnv(&cfg); err != nil {
@@ -193,6 +203,36 @@ func TestLoadEnv_Digest(t *testing.T) {
 	}
 	if cfg.Digest.IncludeReadStatus != false {
 		t.Errorf("Digest.IncludeReadStatus = %v, want false", cfg.Digest.IncludeReadStatus)
+	}
+	if cfg.Digest.IncludeGlobalStats != false {
+		t.Errorf("Digest.IncludeGlobalStats = %v, want false", cfg.Digest.IncludeGlobalStats)
+	}
+	if cfg.Digest.IncludeAccountStats != false {
+		t.Errorf("Digest.IncludeAccountStats = %v, want false", cfg.Digest.IncludeAccountStats)
+	}
+	if cfg.Digest.IncludeSummaries != false {
+		t.Errorf("Digest.IncludeSummaries = %v, want false", cfg.Digest.IncludeSummaries)
+	}
+	if cfg.Digest.IncludeKeyPoints != false {
+		t.Errorf("Digest.IncludeKeyPoints = %v, want false", cfg.Digest.IncludeKeyPoints)
+	}
+	if cfg.Digest.IncludeActionItems != false {
+		t.Errorf("Digest.IncludeActionItems = %v, want false", cfg.Digest.IncludeActionItems)
+	}
+	if cfg.Digest.IncludeRawExcerptFallback != false {
+		t.Errorf("Digest.IncludeRawExcerptFallback = %v, want false", cfg.Digest.IncludeRawExcerptFallback)
+	}
+	if cfg.Digest.MaxMessages != 50 {
+		t.Errorf("Digest.MaxMessages = %d, want 50", cfg.Digest.MaxMessages)
+	}
+	if cfg.Digest.MaxKeyPointsPerMessage != 3 {
+		t.Errorf("Digest.MaxKeyPointsPerMessage = %d, want 3", cfg.Digest.MaxKeyPointsPerMessage)
+	}
+	if cfg.Digest.MaxActionItemsPerMessage != 2 {
+		t.Errorf("Digest.MaxActionItemsPerMessage = %d, want 2", cfg.Digest.MaxActionItemsPerMessage)
+	}
+	if cfg.Digest.PriorityOnly != true {
+		t.Errorf("Digest.PriorityOnly = %v, want true", cfg.Digest.PriorityOnly)
 	}
 }
 

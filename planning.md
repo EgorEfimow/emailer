@@ -197,23 +197,15 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [x] 10.4 Mark run status `degraded` when partial analysis is recoverable but degraded.
 - [x] 10.5 Add tests: one bad item among many good ones keeps the good analyses; failed items counted and visible.
 
-## Phase 11 — Telegram-Safe Digest Length Controls
-
-### Branch: `feat/notify-length-controls`
-- [ ] 11.1 Add configurable renderer limits: max detailed emails, max summary length, max key points/action items per email, max rendered digest length.
-- [ ] 11.2 In the Telegram channel (`internal/notify/telegram`), split oversized payloads or fall back to a document when over limits.
-- [ ] 11.3 Add truncation indicators (e.g., "and N more emails not shown") and keep MarkdownV2 valid after splitting/truncation.
-- [ ] 11.4 Add tests covering truncation and oversized-digest delivery behavior.
-
 ## Phase 12 — Digest Configuration Options
 
 ### Branch: `feat/digest-config`
-- [ ] 12.1 Add a `digest` config section: `include_global_stats`, `include_account_stats`, `include_summaries`, `include_key_points`, `include_action_items`, `include_raw_excerpt_fallback`, `max_messages`, `max_key_points_per_message`, `max_action_items_per_message`, `priority_only`.
-- [ ] 12.2 Provide safe defaults preserving current useful behavior.
-- [ ] 12.3 Validate new options in `Validate()`; update `.env.example` and `config.example.yaml`.
-- [ ] 12.4 Update `architecture.md` §5.1/§5.6 and docs (`docs/configuration.md`).
-- [ ] 12.5 Wire config into renderer/channel construction.
-- [ ] 12.6 Add tests for defaults, toggles, and invalid values.
+- [x] 12.1 Add a `digest` config section: `include_global_stats`, `include_account_stats`, `include_summaries`, `include_key_points`, `include_action_items`, `include_raw_excerpt_fallback`, `max_messages`, `max_key_points_per_message`, `max_action_items_per_message`, `priority_only`.
+- [x] 12.2 Provide safe defaults preserving current useful behavior.
+- [x] 12.3 Validate new options in `Validate()`; update `.env.example` and `config.example.yaml`.
+- [x] 12.4 Update `architecture.md` §5.1/§5.6 and docs (`docs/configuration.md`).
+- [x] 12.5 Wire config into renderer/channel construction.
+- [x] 12.6 Add tests for defaults, toggles, and invalid values.
 
 ## Phase 13 — Docker (Optional)
 
@@ -235,8 +227,5 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 ## Phase 15 — Release
 
 ### Branch: `release/v0.1.0`
-- [ ] 15.1 Tag `v0.1.0-rc.1`.
-- [ ] 15.2 Cut release candidate.
 - [ ] 15.3 Run end-to-end on staging for 7 consecutive days.
-- [ ] 15.4 Tag `v0.1.0`.
 - [ ] 15.5 Publish release notes.

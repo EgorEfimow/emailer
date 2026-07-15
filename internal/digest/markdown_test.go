@@ -6,12 +6,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egorefimow/emailer/internal/config"
 	"github.com/egorefimow/emailer/internal/mail"
 )
 
 func TestMarkdownRenderer_HappyPath(t *testing.T) { //nolint:gocyclo
 	now := time.Date(2026, 7, 14, 10, 30, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{
+		MaxMessageExcerpt:         200,
+		IncludeReadStatus:         true,
+		IncludeGlobalStats:        true,
+		IncludeAccountStats:       true,
+		IncludeSummaries:          true,
+		IncludeKeyPoints:          true,
+		IncludeActionItems:        true,
+		IncludeRawExcerptFallback: true,
+		MaxMessages:               100,
+		MaxKeyPointsPerMessage:    5,
+		MaxActionItemsPerMessage:  3,
+		PriorityOnly:              false,
+	}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:           "run-abc-123",
@@ -123,7 +138,8 @@ func TestMarkdownRenderer_HappyPath(t *testing.T) { //nolint:gocyclo
 
 func TestMarkdownRenderer_EmptyMessages(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:        "run-empty",
@@ -145,7 +161,8 @@ func TestMarkdownRenderer_EmptyMessages(t *testing.T) {
 
 func TestMarkdownRenderer_NoReadStatus(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(false, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: false, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-no-status",
@@ -179,7 +196,8 @@ func TestMarkdownRenderer_NoReadStatus(t *testing.T) {
 
 func TestMarkdownRenderer_ExcerptTruncation(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 20) // Very short limit.
+	cfg := config.DigestConfig{MaxMessageExcerpt: 20, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg) // Very short limit.
 
 	longBody := "This is a very long body that should be truncated to twenty characters."
 	data := DigestData{
@@ -215,7 +233,8 @@ func TestMarkdownRenderer_ExcerptTruncation(t *testing.T) {
 
 func TestMarkdownRenderer_UnknownLabel(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-unknown",
@@ -248,7 +267,8 @@ func TestMarkdownRenderer_UnknownLabel(t *testing.T) {
 }
 
 func TestMarkdownRenderer_Name(t *testing.T) {
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 	if r.Name() != "markdown" {
 		t.Errorf("Name() = %q, want %q", r.Name(), "markdown")
 	}
@@ -256,7 +276,8 @@ func TestMarkdownRenderer_Name(t *testing.T) {
 
 func TestMarkdownRenderer_MultipleLabels(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-multi",
@@ -331,7 +352,8 @@ func TestMarkdownRenderer_MultipleLabels(t *testing.T) {
 }
 
 func TestMarkdownRenderer_ContextCancelled(t *testing.T) {
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -351,7 +373,8 @@ func TestMarkdownRenderer_ContextCancelled(t *testing.T) {
 }
 func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:           "run-stats",
@@ -451,7 +474,8 @@ func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 
 func TestMarkdownRenderer_NeedsAttentionSection(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-needs-attn",
@@ -547,7 +571,8 @@ func TestMarkdownRenderer_NeedsAttentionSection(t *testing.T) {
 
 func TestMarkdownRenderer_NoNeedsAttentionWhenNoHighPriority(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-no-high",
@@ -582,7 +607,8 @@ func TestMarkdownRenderer_NoNeedsAttentionWhenNoHighPriority(t *testing.T) {
 
 func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-priority",
@@ -633,7 +659,8 @@ func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
 
 func TestMarkdownRenderer_RendersSummary(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-summary",
@@ -682,7 +709,8 @@ func TestMarkdownRenderer_RendersSummary(t *testing.T) {
 
 func TestMarkdownRenderer_RendersActionItems(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-action",
@@ -725,7 +753,8 @@ func TestMarkdownRenderer_RendersActionItems(t *testing.T) {
 
 func TestMarkdownRenderer_NoActionItemsWhenEmpty(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-no-action",
@@ -767,7 +796,8 @@ func TestMarkdownRenderer_NoActionItemsWhenEmpty(t *testing.T) {
 
 func TestMarkdownRenderer_FallbackToExcerptWhenNoSummary(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-fallback",
@@ -810,7 +840,8 @@ func TestMarkdownRenderer_FallbackToExcerptWhenNoSummary(t *testing.T) {
 
 func TestMarkdownRenderer_RendersTopSendersAndDomainsInGlobalStats(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:           "run-senders",
@@ -855,7 +886,8 @@ func TestMarkdownRenderer_RendersTopSendersAndDomainsInGlobalStats(t *testing.T)
 
 func TestMarkdownRenderer_OmitsTopSendersWhenEmpty(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-no-senders",
@@ -880,7 +912,8 @@ func TestMarkdownRenderer_OmitsTopSendersWhenEmpty(t *testing.T) {
 
 func TestMarkdownRenderer_RendersTopSendersAndDomainsInAccountStats(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:           "run-acct-senders",
@@ -941,7 +974,8 @@ func TestMarkdownRenderer_RendersTopSendersAndDomainsInAccountStats(t *testing.T
 
 func TestMarkdownRenderer_MixedContent(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-mixed",
@@ -1008,7 +1042,8 @@ func TestMarkdownRenderer_MixedContent(t *testing.T) {
 
 func TestMarkdownRenderer_HighlightsSection(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-highlights",
@@ -1051,7 +1086,8 @@ func TestMarkdownRenderer_HighlightsSection(t *testing.T) {
 
 func TestMarkdownRenderer_NoHighlightsWhenNil(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-no-highlights",
@@ -1079,7 +1115,8 @@ func TestMarkdownRenderer_NoHighlightsWhenNil(t *testing.T) {
 
 func TestMarkdownRenderer_NeutralHighlightsWhenEmpty(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	r := NewMarkdownRenderer(true, 200)
+	cfg := config.DigestConfig{MaxMessageExcerpt: 200, IncludeReadStatus: true, IncludeGlobalStats: true, IncludeAccountStats: true, IncludeSummaries: true, IncludeKeyPoints: true, IncludeActionItems: true, IncludeRawExcerptFallback: true, MaxMessages: 100, MaxKeyPointsPerMessage: 5, MaxActionItemsPerMessage: 3, PriorityOnly: false}
+	r := NewMarkdownRenderer(cfg)
 
 	data := DigestData{
 		RunID:       "run-empty-highlights",

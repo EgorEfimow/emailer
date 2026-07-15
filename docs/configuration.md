@@ -29,6 +29,16 @@ increasing precedence (later overrides earlier):
 | Max window | `EMAILER_MAX_WINDOW` | `--max-window` | `72h` | |
 | Max message excerpt | `EMAILER_DIGEST_MAX_MESSAGE_EXCERPT` | `--digest-max-message-excerpt` | `500` | |
 | Include read status | `EMAILER_DIGEST_INCLUDE_READ_STATUS` | `--digest-include-read-status` | `true` | |
+| Include global stats | `EMAILER_DIGEST_INCLUDE_GLOBAL_STATS` | `--digest-include-global-stats` | `true` | |
+| Include account stats | `EMAILER_DIGEST_INCLUDE_ACCOUNT_STATS` | `--digest-include-account-stats` | `true` | |
+| Include summaries | `EMAILER_DIGEST_INCLUDE_SUMMARIES` | `--digest-include-summaries` | `true` | |
+| Include key points | `EMAILER_DIGEST_INCLUDE_KEY_POINTS` | `--digest-include-key-points` | `true` | |
+| Include action items | `EMAILER_DIGEST_INCLUDE_ACTION_ITEMS` | `--digest-include-action-items` | `true` | |
+| Include raw excerpt fallback | `EMAILER_DIGEST_INCLUDE_RAW_EXCERPT_FALLBACK` | `--digest-include-raw-excerpt-fallback` | `true` | |
+| Max messages | `EMAILER_DIGEST_MAX_MESSAGES` | `--digest-max-messages` | `100` | |
+| Max key points per message | `EMAILER_DIGEST_MAX_KEY_POINTS_PER_MESSAGE` | `--digest-max-key-points-per-message` | `5` | |
+| Max action items per message | `EMAILER_DIGEST_MAX_ACTION_ITEMS_PER_MESSAGE` | `--digest-max-action-items-per-message` | `3` | |
+| Priority only | `EMAILER_DIGEST_PRIORITY_ONLY` | `--digest-priority-only` | `false` | |
 | Custom labels | `EMAILER_LABELS_CUSTOM` | `--labels-custom` | `[]` | |
 | Concurrency accounts | `EMAILER_CONCURRENCY_MAX_ACCOUNTS` | `--concurrency-max-accounts` | `4` | |
 | Concurrency LLM calls | `EMAILER_CONCURRENCY_MAX_LLM_CALLS` | `--concurrency-max-llm-calls` | `4` | |
@@ -76,8 +86,18 @@ max_window: 72h
 
 # Digest Rendering
 digest:
-  max_message_excerpt: 500
-  include_read_status: true
+  max_message_excerpt: 500        # characters per message in digest
+  include_read_status: true       # show read/unread badge per message
+  include_global_stats: true      # show global summary block (## Summary)
+  include_account_stats: true     # show per-account stats (## Account Stats)
+  include_summaries: true         # show LLM summaries per message
+  include_key_points: true        # show key points per message
+  include_action_items: true      # show action items per message
+  include_raw_excerpt_fallback: true  # show raw excerpt when analysis fails
+  max_messages: 100               # cap total messages in digest (0 = unlimited)
+  max_key_points_per_message: 5   # cap key points per message (0 = unlimited)
+  max_action_items_per_message: 3 # cap action items per message (0 = unlimited)
+  priority_only: false            # show only high-priority messages
 
 # Classification Labels
 labels:
@@ -180,6 +200,16 @@ full list:
 |-------|------|---------|-------------|
 | `max_message_excerpt` | int | `500` | Max characters per message in digest |
 | `include_read_status` | bool | `true` | Show read/unread badge per message |
+| `include_global_stats` | bool | `true` | Render global summary block (## Summary) |
+| `include_account_stats` | bool | `true` | Render per-account stats (## Account Stats) |
+| `include_summaries` | bool | `true` | Render LLM summaries per message |
+| `include_key_points` | bool | `true` | Render key points per message |
+| `include_action_items` | bool | `true` | Render action items per message |
+| `include_raw_excerpt_fallback` | bool | `true` | Show raw excerpt when analysis fails |
+| `max_messages` | int | `100` | Cap total messages in digest (`0` = unlimited) |
+| `max_key_points_per_message` | int | `5` | Cap key points per message (`0` = unlimited) |
+| `max_action_items_per_message` | int | `3` | Cap action items per message (`0` = unlimited) |
+| `priority_only` | bool | `false` | Show only high-priority messages |
 
 ### Labels (`labels`)
 

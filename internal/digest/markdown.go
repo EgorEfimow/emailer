@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/egorefimow/emailer/internal/config"
 	"github.com/egorefimow/emailer/internal/mail"
 )
 
@@ -20,22 +21,15 @@ import (
 // templates. It explicitly renders the Date and Read/Unread status for
 // each message.
 type MarkdownRenderer struct {
-	// IncludeReadStatus controls whether the read/unread badge is shown.
-	IncludeReadStatus bool
-
-	// MaxMessageExcerpt limits the excerpt length in characters.
-	MaxMessageExcerpt int
+	cfg config.DigestConfig
 }
 
 // compile-time check: *MarkdownRenderer satisfies Renderer.
 var _ Renderer = (*MarkdownRenderer)(nil)
 
 // NewMarkdownRenderer creates a new MarkdownRenderer with the given options.
-func NewMarkdownRenderer(includeReadStatus bool, maxMessageExcerpt int) *MarkdownRenderer {
-	return &MarkdownRenderer{
-		IncludeReadStatus: includeReadStatus,
-		MaxMessageExcerpt: maxMessageExcerpt,
-	}
+func NewMarkdownRenderer(cfg config.DigestConfig) *MarkdownRenderer {
+	return &MarkdownRenderer{cfg: cfg}
 }
 
 // Name returns "markdown".
@@ -45,38 +39,72 @@ func (r *MarkdownRenderer) Name() string {
 
 // Render produces a Markdown digest from the provided data.
 func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, error) {
-	tmpl, err := template.New("digest").
-		Funcs(template.FuncMap{
-			"formatTime":       formatTime,
-			"readBadge":        r.readBadge,
-			"truncate":         r.truncate,
-			"joinLabels":       joinLabels,
-			"labelCounts":      labelCounts,
-			"add1":             func(n int) int { return n + 1 },
-			"mul":              func(a, b float64) float64 { return a * b },
-			"priority":         displayPriority,
-			"hasSummary":       func(c mail.Classification) bool { return strings.TrimSpace(c.Summary) != "" },
-			"hasAnalysisError": func(c mail.Classification) bool { return c.AnalysisError != nil },
-			"now":              time.Now,
-		}).
-		Parse(markdownTemplate)
-	if err != nil {
-		return "", fmt.Errorf("digest.markdown.parse_template: %w", err)
+	// Apply priority-only filter first.
+	messages := data.Messages
+	if r.cfg.PriorityOnly {
+		var filtered []MessageEntry
+		for _, m := range messages {
+			if strings.EqualFold(strings.TrimSpace(m.Classification.Priority), "high") {
+				filtered = append(filtered, m)
+			}
+		}
+		messages = filtered
 	}
 
-	stats := r.prepareStats(data)
+	// Apply max_messages limit (0 = no limit).
+	if r.cfg.MaxMessages > 0 && len(messages) > r.cfg.MaxMessages {
+		// Prefer high-priority, then most recent.
+		sort.SliceStable(messages, func(i, j int) bool {
+			pi := priorityRank(messages[i].Classification.Priority)
+			pj := priorityRank(messages[j].Classification.Priority)
+			if pi != pj {
+				return pi < pj
+			}
+			return messages[i].Date.After(messages[j].Date)
+		})
+		messages = messages[:r.cfg.MaxMessages]
+	}
 
-	// Collect high-priority messages for the "Needs attention" section.
-	highPriority := collectHighPriorityMessages(data.Messages)
+	// Also apply priority-only and max_messages to high-priority list for the "Needs Attention" section.
+	highPriority := collectHighPriorityMessages(messages)
 
 	// Group messages by classification label.
-	groups := groupByLabel(data.Messages)
+	groups := groupByLabel(messages)
 	// Sort groups alphabetically for consistent output.
 	labels := make([]string, 0, len(groups))
 	for l := range groups {
 		labels = append(labels, l)
 	}
 	sort.Strings(labels)
+
+	stats := r.prepareStats(data)
+
+	tmpl, err := template.New("digest").
+		Funcs(template.FuncMap{
+			"formatTime":          formatTime,
+			"readBadge":           r.readBadge,
+			"truncate":            r.truncate,
+			"truncateKeyPoints":   r.truncateKeyPoints,
+			"truncateActionItems": r.truncateActionItems,
+			"joinLabels":          joinLabels,
+			"labelCounts":         labelCounts,
+			"add1":                func(n int) int { return n + 1 },
+			"mul":                 func(a, b float64) float64 { return a * b },
+			"priority":            displayPriority,
+			"hasSummary":          func(c mail.Classification) bool { return strings.TrimSpace(c.Summary) != "" },
+			"hasAnalysisError":    func(c mail.Classification) bool { return c.AnalysisError != nil },
+			"includeGlobalStats":  func() bool { return r.cfg.IncludeGlobalStats },
+			"includeAccountStats": func() bool { return r.cfg.IncludeAccountStats },
+			"includeSummaries":    func() bool { return r.cfg.IncludeSummaries },
+			"includeKeyPoints":    func() bool { return r.cfg.IncludeKeyPoints },
+			"includeActionItems":  func() bool { return r.cfg.IncludeActionItems },
+			"includeRawFallback":  func() bool { return r.cfg.IncludeRawExcerptFallback },
+			"now":                 time.Now,
+		}).
+		Parse(markdownTemplate)
+	if err != nil {
+		return "", fmt.Errorf("digest.markdown.parse_template: %w", err)
+	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, map[string]any{
@@ -88,10 +116,10 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 		"FailedCount":       data.FailedCount,
 		"Groups":            groups,
 		"Labels":            labels,
-		"TotalMessages":     len(data.Messages),
+		"TotalMessages":     len(messages),
 		"GlobalStats":       stats,
 		"AccountStats":      data.AccountStats,
-		"IncludeReadStatus": r.IncludeReadStatus,
+		"IncludeReadStatus": r.cfg.IncludeReadStatus,
 		"HighPriority":      highPriority,
 		"HasHighPriority":   len(highPriority) > 0,
 		"Highlights":        data.Highlights,
@@ -154,7 +182,7 @@ func collectHighPriorityMessages(messages []MessageEntry) []MessageEntry {
 
 // readBadge returns a short string indicating the read/unread status.
 func (r *MarkdownRenderer) readBadge(isRead bool) string {
-	if !r.IncludeReadStatus {
+	if !r.cfg.IncludeReadStatus {
 		return ""
 	}
 	if isRead {
@@ -165,10 +193,26 @@ func (r *MarkdownRenderer) readBadge(isRead bool) string {
 
 // truncate shortens a string to the configured maximum length.
 func (r *MarkdownRenderer) truncate(s string) string {
-	if r.MaxMessageExcerpt <= 0 || len(s) <= r.MaxMessageExcerpt {
+	if r.cfg.MaxMessageExcerpt <= 0 || len(s) <= r.cfg.MaxMessageExcerpt {
 		return s
 	}
-	return s[:r.MaxMessageExcerpt] + "…"
+	return s[:r.cfg.MaxMessageExcerpt] + "…"
+}
+
+// truncateKeyPoints truncates the key points slice to the configured maximum.
+func (r *MarkdownRenderer) truncateKeyPoints(points []string) []string {
+	if r.cfg.MaxKeyPointsPerMessage <= 0 || len(points) <= r.cfg.MaxKeyPointsPerMessage {
+		return points
+	}
+	return points[:r.cfg.MaxKeyPointsPerMessage]
+}
+
+// truncateActionItems truncates the action items slice to the configured maximum.
+func (r *MarkdownRenderer) truncateActionItems(items []string) []string {
+	if r.cfg.MaxActionItemsPerMessage <= 0 || len(items) <= r.cfg.MaxActionItemsPerMessage {
+		return items
+	}
+	return items[:r.cfg.MaxActionItemsPerMessage]
 }
 
 // formatTime formats a time.Time for display in the digest.
@@ -276,6 +320,7 @@ const markdownTemplate = `# 📧 Email Digest
 {{- end}}
 
 {{- end}}
+{{- if includeGlobalStats}}
 ## Summary
 
 **Fetched:** {{.GlobalStats.FetchedCount}}
@@ -302,6 +347,8 @@ const markdownTemplate = `# 📧 Email Digest
 {{- end}}
 **Messages:** {{.TotalMessages}} classified ({{.TotalFetched}} fetched, {{.FailedCount}} failed)
 
+{{- end}}
+{{- if includeAccountStats}}
 ## Account Stats
 
 {{- if .AccountStats}}
@@ -334,6 +381,7 @@ const markdownTemplate = `# 📧 Email Digest
 No account stats available.
 {{- end}}
 
+{{- end}}
 {{- if $.HasHighPriority}}
 ## 🚨 Needs Attention
 
@@ -368,26 +416,38 @@ No account stats available.
 **Confidence:** {{printf "%.0f" (mul $entry.Classification.Confidence 100)}}%
 **Reason:** {{$entry.Classification.Reason}}
 
+{{- if includeSummaries}}
 {{- if hasSummary $entry.Classification}}
 **Summary:** {{$entry.Classification.Summary}}
 
 **Key points:**
-{{- range $entry.Classification.KeyPoints}}
+{{- range truncateKeyPoints $entry.Classification.KeyPoints}}
 - {{.}}
 {{- end}}
+{{- if includeActionItems}}
 {{- if $entry.Classification.ActionItems}}
 
 **Action items:**
-{{- range $entry.Classification.ActionItems}}
+{{- range truncateActionItems $entry.Classification.ActionItems}}
 - {{.}}
+{{- end}}
 {{- end}}
 {{- end}}
 {{- else if hasAnalysisError $entry.Classification}}
 ⚠️ **Analysis failed ({{$entry.Classification.AnalysisError.Stage}}):** {{$entry.Classification.AnalysisError.Error}}
 
+{{- if includeRawFallback}}
 > {{truncate $entry.Excerpt}}
 {{- else}}
+> [Raw excerpt omitted — enable include_raw_excerpt_fallback to view]
+{{- end}}
+{{- else}}
+{{- if includeRawFallback}}
 > {{truncate $entry.Excerpt}}
+{{- else}}
+> [Raw excerpt omitted — enable include_raw_excerpt_fallback or include_summaries to view]
+{{- end}}
+{{- end}}
 {{- end}}
 
 {{- end}}

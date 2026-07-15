@@ -45,6 +45,16 @@ func loadFlags(args []string, cfg *Config) error {
 	// ── Digest ──────────────────────────────────────────────────────
 	digestMaxExcerpt := fs.Int("digest-max-message-excerpt", cfg.Digest.MaxMessageExcerpt, "")
 	digestIncludeRead := fs.Bool("digest-include-read-status", cfg.Digest.IncludeReadStatus, "")
+	digestIncludeGlobalStats := fs.Bool("digest-include-global-stats", cfg.Digest.IncludeGlobalStats, "")
+	digestIncludeAccountStats := fs.Bool("digest-include-account-stats", cfg.Digest.IncludeAccountStats, "")
+	digestIncludeSummaries := fs.Bool("digest-include-summaries", cfg.Digest.IncludeSummaries, "")
+	digestIncludeKeyPoints := fs.Bool("digest-include-key-points", cfg.Digest.IncludeKeyPoints, "")
+	digestIncludeActionItems := fs.Bool("digest-include-action-items", cfg.Digest.IncludeActionItems, "")
+	digestIncludeRawExcerptFallback := fs.Bool("digest-include-raw-excerpt-fallback", cfg.Digest.IncludeRawExcerptFallback, "")
+	digestMaxMessages := fs.Int("digest-max-messages", cfg.Digest.MaxMessages, "")
+	digestMaxKeyPointsPerMessage := fs.Int("digest-max-key-points-per-message", cfg.Digest.MaxKeyPointsPerMessage, "")
+	digestMaxActionItemsPerMessage := fs.Int("digest-max-action-items-per-message", cfg.Digest.MaxActionItemsPerMessage, "")
+	digestPriorityOnly := fs.Bool("digest-priority-only", cfg.Digest.PriorityOnly, "")
 
 	// ── Labels ──────────────────────────────────────────────────────
 	labelsCustom := fs.String("labels-custom", "", "")
@@ -102,6 +112,16 @@ func loadFlags(args []string, cfg *Config) error {
 	// Digest
 	cfg.Digest.MaxMessageExcerpt = *digestMaxExcerpt
 	cfg.Digest.IncludeReadStatus = *digestIncludeRead
+	cfg.Digest.IncludeGlobalStats = *digestIncludeGlobalStats
+	cfg.Digest.IncludeAccountStats = *digestIncludeAccountStats
+	cfg.Digest.IncludeSummaries = *digestIncludeSummaries
+	cfg.Digest.IncludeKeyPoints = *digestIncludeKeyPoints
+	cfg.Digest.IncludeActionItems = *digestIncludeActionItems
+	cfg.Digest.IncludeRawExcerptFallback = *digestIncludeRawExcerptFallback
+	cfg.Digest.MaxMessages = *digestMaxMessages
+	cfg.Digest.MaxKeyPointsPerMessage = *digestMaxKeyPointsPerMessage
+	cfg.Digest.MaxActionItemsPerMessage = *digestMaxActionItemsPerMessage
+	cfg.Digest.PriorityOnly = *digestPriorityOnly
 
 	// Labels
 	if *labelsCustom != "" {

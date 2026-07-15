@@ -160,6 +160,52 @@ type DigestConfig struct {
 	// IncludeReadStatus determines whether the read/unread badge is
 	// shown next to each message in the digest.
 	IncludeReadStatus bool `yaml:"include_read_status" json:"include_read_status"`
+
+	// IncludeGlobalStats controls whether the global summary block
+	// (## Summary) is rendered. Default true.
+	IncludeGlobalStats bool `yaml:"include_global_stats" json:"include_global_stats"`
+
+	// IncludeAccountStats controls whether per-account statistics
+	// (## Account Stats) are rendered. Default true.
+	IncludeAccountStats bool `yaml:"include_account_stats" json:"include_account_stats"`
+
+	// IncludeSummaries controls whether LLM-generated summaries are
+	// rendered per message. When false, only the raw excerpt is shown.
+	// Must not be false when IncludeRawExcerptFallback is also false.
+	// Default true.
+	IncludeSummaries bool `yaml:"include_summaries" json:"include_summaries"`
+
+	// IncludeKeyPoints controls whether the KeyPoints list is rendered
+	// per message. Default true.
+	IncludeKeyPoints bool `yaml:"include_key_points" json:"include_key_points"`
+
+	// IncludeActionItems controls whether the ActionItems list is rendered
+	// per message. Default true.
+	IncludeActionItems bool `yaml:"include_action_items" json:"include_action_items"`
+
+	// IncludeRawExcerptFallback controls whether the raw email excerpt is
+	// shown when LLM analysis fails (missing summary or analysis error).
+	// Must not be false when IncludeSummaries is also false.
+	// Default true.
+	IncludeRawExcerptFallback bool `yaml:"include_raw_excerpt_fallback" json:"include_raw_excerpt_fallback"`
+
+	// MaxMessages caps the number of message entries in the digest.
+	// When > 0, messages are truncated, preferring high-priority items
+	// then most recent. 0 means no limit. Default 100.
+	MaxMessages int `yaml:"max_messages" json:"max_messages"`
+
+	// MaxKeyPointsPerMessage caps the number of key points rendered per
+	// message. 0 means no limit. Default 5.
+	MaxKeyPointsPerMessage int `yaml:"max_key_points_per_message" json:"max_key_points_per_message"`
+
+	// MaxActionItemsPerMessage caps the number of action items rendered
+	// per message. 0 means no limit. Default 3.
+	MaxActionItemsPerMessage int `yaml:"max_action_items_per_message" json:"max_action_items_per_message"`
+
+	// PriorityOnly restricts the digest to only high-priority messages.
+	// When true, all non-high messages are omitted. Applied before
+	// MaxMessages truncation. Default false.
+	PriorityOnly bool `yaml:"priority_only" json:"priority_only"`
 }
 
 // ---------------------------------------------------------------------------

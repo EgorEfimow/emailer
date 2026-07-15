@@ -62,8 +62,18 @@ func TestValidate_ValidConfig(t *testing.T) {
 			Stateless: false,
 		},
 		Digest: DigestConfig{
-			MaxMessageExcerpt: 500,
-			IncludeReadStatus: true,
+			MaxMessageExcerpt:         500,
+			IncludeReadStatus:         true,
+			IncludeGlobalStats:        true,
+			IncludeAccountStats:       true,
+			IncludeSummaries:          true,
+			IncludeKeyPoints:          true,
+			IncludeActionItems:        true,
+			IncludeRawExcerptFallback: true,
+			MaxMessages:               100,
+			MaxKeyPointsPerMessage:    5,
+			MaxActionItemsPerMessage:  3,
+			PriorityOnly:              false,
 		},
 		Labels: LabelsConfig{
 			Custom: []string{"Urgent", "Reference"},
@@ -344,6 +354,49 @@ func TestValidate_DigestConfig(t *testing.T) {
 		cfg.Digest.MaxMessageExcerpt = -1
 		mustHaveErr(t, Validate(cfg), "digest.max_message_excerpt must be positive")
 	})
+
+	t.Run("max_messages negative", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.MaxMessages = -1
+		mustHaveErr(t, Validate(cfg), "digest.max_messages must be >= 0")
+	})
+
+	t.Run("max_key_points_per_message negative", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.MaxKeyPointsPerMessage = -1
+		mustHaveErr(t, Validate(cfg), "digest.max_key_points_per_message must be >= 0")
+	})
+
+	t.Run("max_action_items_per_message negative", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.MaxActionItemsPerMessage = -1
+		mustHaveErr(t, Validate(cfg), "digest.max_action_items_per_message must be >= 0")
+	})
+
+	t.Run("include_summaries and include_raw_excerpt_fallback both false", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.IncludeSummaries = false
+		cfg.Digest.IncludeRawExcerptFallback = false
+		mustHaveErr(t, Validate(cfg), "at least one of include_summaries or include_raw_excerpt_fallback must be true")
+	})
+
+	t.Run("include_summaries false with include_raw_excerpt_fallback true is ok", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.IncludeSummaries = false
+		cfg.Digest.IncludeRawExcerptFallback = true
+		if err := Validate(cfg); err != nil {
+			mustNotHaveErr(t, err, "include_summaries or include_raw_excerpt_fallback")
+		}
+	})
+
+	t.Run("include_raw_excerpt_fallback false with include_summaries true is ok", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Digest.IncludeSummaries = true
+		cfg.Digest.IncludeRawExcerptFallback = false
+		if err := Validate(cfg); err != nil {
+			mustNotHaveErr(t, err, "include_summaries or include_raw_excerpt_fallback")
+		}
+	})
 }
 
 func TestValidate_ConcurrencyConfig(t *testing.T) {
@@ -440,8 +493,18 @@ func validConfig() Config {
 			Stateless: false,
 		},
 		Digest: DigestConfig{
-			MaxMessageExcerpt: 500,
-			IncludeReadStatus: true,
+			MaxMessageExcerpt:         500,
+			IncludeReadStatus:         true,
+			IncludeGlobalStats:        true,
+			IncludeAccountStats:       true,
+			IncludeSummaries:          true,
+			IncludeKeyPoints:          true,
+			IncludeActionItems:        true,
+			IncludeRawExcerptFallback: true,
+			MaxMessages:               100,
+			MaxKeyPointsPerMessage:    5,
+			MaxActionItemsPerMessage:  3,
+			PriorityOnly:              false,
 		},
 		Labels: LabelsConfig{
 			Custom: nil,

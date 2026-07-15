@@ -72,6 +72,36 @@ func TestDefaultConfig(t *testing.T) { //nolint:gocyclo
 		if cfg.Digest.IncludeReadStatus != true {
 			t.Errorf("Digest.IncludeReadStatus = %v, want true", cfg.Digest.IncludeReadStatus)
 		}
+		if cfg.Digest.IncludeGlobalStats != true {
+			t.Errorf("Digest.IncludeGlobalStats = %v, want true", cfg.Digest.IncludeGlobalStats)
+		}
+		if cfg.Digest.IncludeAccountStats != true {
+			t.Errorf("Digest.IncludeAccountStats = %v, want true", cfg.Digest.IncludeAccountStats)
+		}
+		if cfg.Digest.IncludeSummaries != true {
+			t.Errorf("Digest.IncludeSummaries = %v, want true", cfg.Digest.IncludeSummaries)
+		}
+		if cfg.Digest.IncludeKeyPoints != true {
+			t.Errorf("Digest.IncludeKeyPoints = %v, want true", cfg.Digest.IncludeKeyPoints)
+		}
+		if cfg.Digest.IncludeActionItems != true {
+			t.Errorf("Digest.IncludeActionItems = %v, want true", cfg.Digest.IncludeActionItems)
+		}
+		if cfg.Digest.IncludeRawExcerptFallback != true {
+			t.Errorf("Digest.IncludeRawExcerptFallback = %v, want true", cfg.Digest.IncludeRawExcerptFallback)
+		}
+		if cfg.Digest.MaxMessages != 100 {
+			t.Errorf("Digest.MaxMessages = %d, want 100", cfg.Digest.MaxMessages)
+		}
+		if cfg.Digest.MaxKeyPointsPerMessage != 5 {
+			t.Errorf("Digest.MaxKeyPointsPerMessage = %d, want 5", cfg.Digest.MaxKeyPointsPerMessage)
+		}
+		if cfg.Digest.MaxActionItemsPerMessage != 3 {
+			t.Errorf("Digest.MaxActionItemsPerMessage = %d, want 3", cfg.Digest.MaxActionItemsPerMessage)
+		}
+		if cfg.Digest.PriorityOnly != false {
+			t.Errorf("Digest.PriorityOnly = %v, want false", cfg.Digest.PriorityOnly)
+		}
 	})
 
 	t.Run("Labels defaults", func(t *testing.T) {

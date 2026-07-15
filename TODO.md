@@ -22,8 +22,14 @@ the same commit (see `AGENTS.md` §13).
 - [x] "What changed" highlights block (Phase 8)
 - [ ] LLM response schema versioning (Phase 9)
 - [x] Robust partial LLM failure fallback (Phase 10)
-- [ ] Telegram-safe digest length controls (Phase 11)
-- [ ] Digest configuration options (Phase 12)
+- [x] Digest configuration options (Phase 12)
+
+## Telegram handling (skipped from planning.md Phase 11)
+
+- [ ] Configurable renderer limits: max detailed emails, max summary length, max key points/action items per email, max rendered digest length
+- [ ] In Telegram channel, split oversized payloads or fall back to a document when over limits
+- [ ] Add truncation indicators and keep MarkdownV2 valid after splitting/truncation
+- [ ] Tests covering truncation and oversized-digest delivery behavior
 
 ## Release process (planning.md Phase 15)
 

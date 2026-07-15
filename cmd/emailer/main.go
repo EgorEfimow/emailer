@@ -216,8 +216,8 @@ func run() int { //nolint:gocyclo
 	// -----------------------------------------------------------------------
 	// Step 9: Create digest renderers
 	// -----------------------------------------------------------------------
-	renderer := digest.NewMarkdownRenderer(cfg.Digest.IncludeReadStatus, cfg.Digest.MaxMessageExcerpt)
-	fallbackRenderer := digest.NewFallbackRenderer(cfg.Digest.IncludeReadStatus, cfg.Digest.MaxMessageExcerpt)
+	renderer := digest.NewMarkdownRenderer(cfg.Digest)
+	fallbackRenderer := digest.NewFallbackRenderer(cfg.Digest)
 	logger.Info("renderers created",
 		slog.String("primary", renderer.Name()),
 		slog.String("fallback", fallbackRenderer.Name()),

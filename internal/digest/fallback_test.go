@@ -6,12 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egorefimow/emailer/internal/config"
 	"github.com/egorefimow/emailer/internal/mail"
 )
 
 func TestFallbackRenderer_HappyPath(t *testing.T) {
 	now := time.Date(2026, 7, 14, 10, 30, 0, 0, time.UTC)
-	r := NewFallbackRenderer(true, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  200,
+	})
 
 	data := DigestData{
 		RunID:        "fallback-run-1",
@@ -99,7 +103,10 @@ func TestFallbackRenderer_HappyPath(t *testing.T) {
 
 func TestFallbackRenderer_EmptyMessages(t *testing.T) {
 	now := time.Now()
-	r := NewFallbackRenderer(true, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  200,
+	})
 
 	data := DigestData{
 		RunID:        "fallback-empty",
@@ -121,7 +128,10 @@ func TestFallbackRenderer_EmptyMessages(t *testing.T) {
 
 func TestFallbackRenderer_NoReadStatus(t *testing.T) {
 	now := time.Now()
-	r := NewFallbackRenderer(false, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  false,
+		MaxMessageExcerpt:  200,
+	})
 
 	data := DigestData{
 		RunID:       "fallback-no-status",
@@ -149,7 +159,10 @@ func TestFallbackRenderer_NoReadStatus(t *testing.T) {
 
 func TestFallbackRenderer_ExcerptTruncation(t *testing.T) {
 	now := time.Now()
-	r := NewFallbackRenderer(true, 10) // Very short limit.
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  10, // Very short limit.
+	})
 
 	longBody := "This is a very long body that should be truncated."
 	data := DigestData{
@@ -177,14 +190,20 @@ func TestFallbackRenderer_ExcerptTruncation(t *testing.T) {
 }
 
 func TestFallbackRenderer_Name(t *testing.T) {
-	r := NewFallbackRenderer(true, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  200,
+	})
 	if r.Name() != "fallback" {
 		t.Errorf("Name() = %q, want %q", r.Name(), "fallback")
 	}
 }
 
 func TestFallbackRenderer_ContextCancelled(t *testing.T) {
-	r := NewFallbackRenderer(true, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  200,
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -201,7 +220,20 @@ func TestFallbackRenderer_ContextCancelled(t *testing.T) {
 
 func TestMarkdownRenderer_MessageCount(t *testing.T) {
 	now := time.Now()
-	r := NewMarkdownRenderer(true, 200)
+	r := NewMarkdownRenderer(config.DigestConfig{
+		IncludeReadStatus:         true,
+		MaxMessageExcerpt:         200,
+		IncludeGlobalStats:        true,
+		IncludeAccountStats:       true,
+		IncludeSummaries:          true,
+		IncludeKeyPoints:          true,
+		IncludeActionItems:        true,
+		IncludeRawExcerptFallback: true,
+		MaxMessages:               100,
+		MaxKeyPointsPerMessage:    5,
+		MaxActionItemsPerMessage:  3,
+		PriorityOnly:              false,
+	})
 
 	data := DigestData{
 		RunID:        "run-count",
@@ -241,7 +273,10 @@ func TestMarkdownRenderer_MessageCount(t *testing.T) {
 
 func TestFallbackRenderer_MessageCount(t *testing.T) {
 	now := time.Now()
-	r := NewFallbackRenderer(true, 200)
+	r := NewFallbackRenderer(config.DigestConfig{
+		IncludeReadStatus:  true,
+		MaxMessageExcerpt:  200,
+	})
 
 	data := DigestData{
 		RunID:        "fallback-count",

@@ -60,9 +60,19 @@ func loadEnv(cfg *Config) error {
 	loadString(envPrefix+"STATE_PATH", &cfg.Storage.StatePath)
 	errs = appendErr(errs, loadBool(envPrefix+"STATELESS", &cfg.Storage.Stateless))
 
-	// ── Digest ───────────────────────────────────────────────────────
+// ── Digest ───────────────────────────────────────────────────────
 	errs = appendErr(errs, loadInt(envPrefix+"DIGEST_MAX_MESSAGE_EXCERPT", &cfg.Digest.MaxMessageExcerpt))
 	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_READ_STATUS", &cfg.Digest.IncludeReadStatus))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_GLOBAL_STATS", &cfg.Digest.IncludeGlobalStats))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_ACCOUNT_STATS", &cfg.Digest.IncludeAccountStats))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_SUMMARIES", &cfg.Digest.IncludeSummaries))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_KEY_POINTS", &cfg.Digest.IncludeKeyPoints))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_ACTION_ITEMS", &cfg.Digest.IncludeActionItems))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_INCLUDE_RAW_EXCERPT_FALLBACK", &cfg.Digest.IncludeRawExcerptFallback))
+	errs = appendErr(errs, loadInt(envPrefix+"DIGEST_MAX_MESSAGES", &cfg.Digest.MaxMessages))
+	errs = appendErr(errs, loadInt(envPrefix+"DIGEST_MAX_KEY_POINTS_PER_MESSAGE", &cfg.Digest.MaxKeyPointsPerMessage))
+	errs = appendErr(errs, loadInt(envPrefix+"DIGEST_MAX_ACTION_ITEMS_PER_MESSAGE", &cfg.Digest.MaxActionItemsPerMessage))
+	errs = appendErr(errs, loadBool(envPrefix+"DIGEST_PRIORITY_ONLY", &cfg.Digest.PriorityOnly))
 
 	// ── Labels ───────────────────────────────────────────────────────
 	loadStringSlice(envPrefix+"LABELS_CUSTOM", &cfg.Labels.Custom)

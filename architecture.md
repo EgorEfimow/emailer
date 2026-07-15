@@ -91,6 +91,32 @@ internal/
 - Setting: `MaxWindow` (duration, default `72h`). Caps the dynamic lookback period to prevent overwhelming the LLM after prolonged host downtime.
 - Setting: `imap.timeout` (duration, default `30s`). Bounds each IMAP command (dial, login, select, fetch, store); `0` disables the timeout.
 - Setting: `concurrency.fetch_batch_size` (int, default `10`). UIDs fetched per IMAP UID FETCH command; `0` falls back to the default.
+- **Digest settings** (`digest`):
+  - `max_message_excerpt` (int, default `500`): max characters per message excerpt.
+  - `include_read_status` (bool, default `true`): show read/unread badge per message.
+  - `include_global_stats` (bool, default `true`): render global summary block (`## Summary`).
+  - `include_account_stats` (bool, default `true`): render per-account stats (`## Account Stats`).
+  - `include_summaries` (bool, default `true`): render LLM summaries per message.
+  - `include_key_points` (bool, default `true`): render key points per message.
+  - `include_action_items` (bool, default `true`): render action items per message.
+  - `include_raw_excerpt_fallback` (bool, default `true`): show raw excerpt when analysis fails.
+  - `max_messages` (int, default `100`): cap total messages in digest (`0` = unlimited).
+  - `max_key_points_per_message` (int, default `5`): cap key points per message (`0` = unlimited).
+  - `max_action_items_per_message` (int, default `3`): cap action items per message (`0` = unlimited).
+  - `priority_only` (bool, default `false`): show only high-priority messages.
+- **Digest settings** (`digest` section):
+  - `max_message_excerpt` (int, default `500`): max characters per message excerpt.
+  - `include_read_status` (bool, default `true`): show read/unread badge per message.
+  - `include_global_stats` (bool, default `true`): render global summary block.
+  - `include_account_stats` (bool, default `true`): render per-account statistics.
+  - `include_summaries` (bool, default `true`): render LLM summaries per message.
+  - `include_key_points` (bool, default `true`): render key points per message.
+  - `include_action_items` (bool, default `true`): render action items per message.
+  - `include_raw_excerpt_fallback` (bool, default `true`): show raw excerpt when analysis fails.
+  - `max_messages` (int, default `100`): cap total messages in digest (`0` = unlimited).
+  - `max_key_points_per_message` (int, default `5`): cap key points per message (`0` = unlimited).
+  - `max_action_items_per_message` (int, default `3`): cap action items per message (`0` = unlimited).
+  - `priority_only` (bool, default `false`): only show high-priority messages.
 
 ### 5.2 State Store (`internal/store`)
 
@@ -158,8 +184,21 @@ internal/
 
 - `Renderer` interface with `Render(ctx, DigestData) (string, error)` and `Name() string`.
 - `DigestData` struct: run metadata, per-message entries with subject, from, date, read/unread status, classification label/confidence/reason, summary, key points, action items, priority, and excerpt. Also carries `GlobalStats`, `AccountStats`, `Highlights`, and `AnalysisFailedCount`.
-- `MarkdownRenderer`: `text/template`-based, groups messages by classification label in alphabetical order, renders Date and Read/Unread status explicitly, respects `MaxMessageExcerpt` and `IncludeReadStatus` config. Includes a "Needs Attention" section for high-priority messages. For messages where LLM analysis failed (summary/key_points/action_items validation failed), renders a fallback block showing the raw excerpt with an error indicator.
-- `FallbackRenderer`: simplified digest for LLM failure, lists all fetched messages without classification labels.
+- `MarkdownRenderer`: `text/template`-based, groups messages by classification label in alphabetical order, renders Date and Read/Unread status explicitly. Respects `DigestConfig` for all rendering toggles:
+  - `IncludeGlobalStats`: suppress global summary block (`## Summary`).
+  - `IncludeAccountStats`: suppress per-account stats block (`## Account Stats`).
+  - `IncludeSummaries`: omit per-message summaries, key points, and action items.
+  - `IncludeKeyPoints`: omit key points section when summaries are shown.
+  - `IncludeActionItems`: omit action items section when summaries are shown.
+  - `IncludeRawExcerptFallback`: when summaries are enabled but analysis failed, show placeholder instead of raw excerpt.
+  - `MaxMessageExcerpt`: truncate message excerpts at this length.
+  - `MaxKeyPointsPerMessage`: truncate key points list per message.
+  - `MaxActionItemsPerMessage`: truncate action items list per message.
+  - `MaxMessages`: cap total messages rendered (preferring high-priority then most recent); `0` = no limit.
+  - `PriorityOnly`: if true, filter to only high-priority messages before applying `MaxMessages`.
+  - `IncludeReadStatus`: show/hide read/unread badge.
+- Includes a "Needs Attention" section for high-priority messages. For messages where LLM analysis failed, renders a fallback block showing the raw excerpt with an error indicator.
+- `FallbackRenderer`: simplified digest for LLM failure, lists all fetched messages without classification labels. Also respects `MaxMessages`, `PriorityOnly`, `IncludeGlobalStats`, `IncludeAccountStats`, `MaxMessageExcerpt`, and `IncludeReadStatus`.
 
 ### 5.7 Notify Service (`internal/notify`)
 
