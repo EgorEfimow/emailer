@@ -100,6 +100,12 @@ func TestBuildPrompt_Structure(t *testing.T) {
 	if !strings.Contains(prompt, `"action_items"`) {
 		t.Error("missing action_items field in schema")
 	}
+	if !strings.Contains(prompt, `"priority"`) {
+		t.Error("missing priority field in schema")
+	}
+	if !strings.Contains(prompt, "payment or security risk") {
+		t.Error("missing priority assessment guidance")
+	}
 
 	// Check labels are listed.
 	if !strings.Contains(prompt, "- Useful") {

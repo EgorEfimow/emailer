@@ -27,6 +27,7 @@ type classificationItem struct {
 	Summary     string   `json:"summary"`
 	KeyPoints   []string `json:"key_points"`
 	ActionItems []string `json:"action_items,omitempty"`
+	Priority    string   `json:"priority,omitempty"`
 	Urgency     string   `json:"urgency,omitempty"`
 }
 
@@ -94,6 +95,15 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 			continue
 		}
 
+		priority := normalizePriority(item.Priority)
+		if priority == "" && strings.TrimSpace(item.Urgency) != "" {
+			priority = normalizeLegacyUrgency(item.Urgency)
+		}
+		if priority != "" && !validPriority(priority) {
+			errs = append(errs, fmt.Sprintf("item %d: invalid priority %q for %s/%d", i, firstNonEmpty(item.Priority, item.Urgency), item.Account, item.UID))
+			continue
+		}
+
 		// Validate required analysis fields.
 		if strings.TrimSpace(item.Summary) == "" {
 			errs = append(errs, fmt.Sprintf("item %d: empty summary for %s/%d", i, item.Account, item.UID))
@@ -122,6 +132,7 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 			Summary:     item.Summary,
 			KeyPoints:   item.KeyPoints,
 			ActionItems: item.ActionItems,
+			Priority:    priority,
 			Urgency:     item.Urgency,
 		})
 	}
@@ -144,6 +155,36 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 // stripFences removes markdown code fences (```json ... ``` or ``` ... ```)
 // from the beginning and end of the response. If no fences are detected,
 // the input is returned as-is.
+func validPriority(priority string) bool {
+	switch priority {
+	case "high", "medium", "low":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizePriority(priority string) string {
+	return strings.ToLower(strings.TrimSpace(priority))
+}
+
+func normalizeLegacyUrgency(urgency string) string {
+	normalized := normalizePriority(urgency)
+	if normalized == "normal" {
+		return "medium"
+	}
+	return normalized
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func stripFences(s string) string {
 	s = strings.TrimSpace(s)
 
@@ -193,7 +234,7 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("Please fix the JSON and output ONLY valid JSON in this exact format (no markdown fences, no extra text):\n\n")
 	b.WriteString(`{"classifications": [`)
 	b.WriteString("\n  ")
-	b.WriteString(`{"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "urgency": "normal"}`)
+	b.WriteString(`{"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "priority": "medium"}`)
 	b.WriteString("\n]}\n\n")
 	b.WriteString("Valid labels:\n")
 	b.WriteString(labels)
@@ -201,7 +242,8 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("- Each item must have: uid (number), account (string), label (string from the list above), confidence (0.0–1.0), reason (string), summary (non-empty string), key_points (non-empty array of strings)\n")
 	b.WriteString("- No duplicate (account, uid) pairs\n")
 	b.WriteString("- Confidence must be between 0.0 and 1.0\n")
-	b.WriteString("- action_items and urgency are optional\n")
+	b.WriteString("- action_items are optional\n")
+	b.WriteString("- priority is optional when unavailable; when present it must be one of: high, medium, low\n")
 	b.WriteString("- Output ONLY the JSON object, nothing else\n")
 
 	return b.String(), nil

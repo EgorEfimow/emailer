@@ -86,7 +86,8 @@ type Classification struct {
 	Summary     string   // concise summary of the email
 	KeyPoints   []string // important facts or details from the email
 	ActionItems []string // optional follow-up tasks requested by the email
-	Urgency     string   // optional urgency indicator from the LLM
+	Priority    string   // optional priority indicator from the LLM: high, medium, or low
+	Urgency     string   // deprecated optional urgency indicator from the LLM
 }
 
 // ---------------------------------------------------------------------------

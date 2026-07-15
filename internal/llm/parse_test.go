@@ -154,6 +154,9 @@ func TestParseResponse_OptionalAnalysisFields(t *testing.T) {
 	if results[0].Urgency != "high" {
 		t.Errorf("urgency = %q, want high", results[0].Urgency)
 	}
+	if results[0].Priority != "high" {
+		t.Errorf("priority = %q, want high", results[0].Priority)
+	}
 }
 
 func TestParseResponse_MissingSummary(t *testing.T) {
@@ -599,5 +602,29 @@ func TestParseResponse_DifferentAccountsSameUID(t *testing.T) {
 
 	if len(results) != 2 {
 		t.Fatalf("got %d classifications, want 2", len(results))
+	}
+}
+
+func TestParseResponse_PriorityValidation(t *testing.T) {
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "deadline", "summary": "Due tomorrow", "key_points": ["Deadline tomorrow"], "priority": "HIGH"}]}`
+
+	results, err := ParseResponse(raw, []string{"Useful"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results[0].Priority != "high" {
+		t.Errorf("priority = %q, want high", results[0].Priority)
+	}
+}
+
+func TestParseResponse_InvalidPriority(t *testing.T) {
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "test", "summary": "Email summary", "key_points": ["Key point"], "priority": "urgent"}]}`
+
+	_, err := ParseResponse(raw, []string{"Useful"})
+	if err == nil {
+		t.Fatal("expected error for invalid priority, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid priority") {
+		t.Errorf("error should mention invalid priority, got: %v", err)
 	}
 }
