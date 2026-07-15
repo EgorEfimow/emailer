@@ -15,8 +15,8 @@ import (
 
 func TestParseResponse_Valid(t *testing.T) {
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.95, "reason": "Important meeting"},
-		{"uid": 2, "account": "personal", "label": "ToDelete", "confidence": 0.8, "reason": "Spam"}
+		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.95, "reason": "Important meeting", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 2, "account": "personal", "label": "ToDelete", "confidence": 0.8, "reason": "Spam", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	results, err := ParseResponse(raw, []string{"Useful", "ToDelete", "Ads"})
@@ -44,6 +44,12 @@ func TestParseResponse_Valid(t *testing.T) {
 	if results[0].Reason != "Important meeting" {
 		t.Errorf("first reason = %q, want %q", results[0].Reason, "Important meeting")
 	}
+	if results[0].Summary != "Email summary" {
+		t.Errorf("first summary = %q, want %q", results[0].Summary, "Email summary")
+	}
+	if len(results[0].KeyPoints) != 1 || results[0].KeyPoints[0] != "Key point" {
+		t.Errorf("first key_points = %v, want [Key point]", results[0].KeyPoints)
+	}
 
 	// Check second result.
 	if results[1].Key.AccountLabel != "personal" {
@@ -59,7 +65,7 @@ func TestParseResponse_Valid(t *testing.T) {
 
 func TestParseResponse_WithFences(t *testing.T) {
 	// Response with markdown code fences (```json ... ```).
-	raw := "```json\n{\"classifications\": [\n  {\"uid\": 1, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"test\"}\n]}\n```"
+	raw := "```json\n{\"classifications\": [\n  {\"uid\": 1, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"test\", \"summary\": \"Email summary\", \"key_points\": [\"Key point\"]}\n]}\n```"
 
 	results, err := ParseResponse(raw, []string{"Useful"})
 	if err != nil {
@@ -76,7 +82,7 @@ func TestParseResponse_WithFences(t *testing.T) {
 
 func TestParseResponse_WithFencesNoLang(t *testing.T) {
 	// Response with plain fences (``` ... ```).
-	raw := "```\n{\"classifications\": [\n  {\"uid\": 1, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"test\"}\n]}\n```"
+	raw := "```\n{\"classifications\": [\n  {\"uid\": 1, \"account\": \"work\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"test\", \"summary\": \"Email summary\", \"key_points\": [\"Key point\"]}\n]}\n```"
 
 	results, err := ParseResponse(raw, []string{"Useful"})
 	if err != nil {
@@ -89,7 +95,7 @@ func TestParseResponse_WithFencesNoLang(t *testing.T) {
 }
 
 func TestParseResponse_SingleItem(t *testing.T) {
-	raw := `{"classifications": [{"uid": 1, "account": "test", "label": "Ads", "confidence": 0.75, "reason": "promotional"}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "test", "label": "Ads", "confidence": 0.75, "reason": "promotional", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	results, err := ParseResponse(raw, []string{"Ads"})
 	if err != nil {
@@ -106,7 +112,7 @@ func TestParseResponse_SingleItem(t *testing.T) {
 
 func TestParseResponse_UnknownLabelBecomesUnknown(t *testing.T) {
 	// "Unknown" is always a valid label.
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Unknown", "confidence": 0.5, "reason": "cannot classify"}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Unknown", "confidence": 0.5, "reason": "cannot classify", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	results, err := ParseResponse(raw, []string{"Useful"})
 	if err != nil {
@@ -123,7 +129,7 @@ func TestParseResponse_UnknownLabelBecomesUnknown(t *testing.T) {
 
 func TestParseResponse_TrailingContent(t *testing.T) {
 	// Response with trailing commentary after the JSON.
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "test"}]} I think this email is important.`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "test", "summary": "Email summary", "key_points": ["Key point"]}]} I think this email is important.`
 
 	results, err := ParseResponse(raw, []string{"Useful"})
 	if err != nil {
@@ -132,6 +138,45 @@ func TestParseResponse_TrailingContent(t *testing.T) {
 
 	if len(results) != 1 {
 		t.Fatalf("got %d classifications, want 1", len(results))
+	}
+}
+
+func TestParseResponse_OptionalAnalysisFields(t *testing.T) {
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "reply needed", "summary": "Needs a reply", "key_points": ["Customer asks for an update"], "action_items": ["Reply with status"], "urgency": "high"}]}`
+
+	results, err := ParseResponse(raw, []string{"Useful"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := results[0].ActionItems; len(got) != 1 || got[0] != "Reply with status" {
+		t.Errorf("action_items = %v, want [Reply with status]", got)
+	}
+	if results[0].Urgency != "high" {
+		t.Errorf("urgency = %q, want high", results[0].Urgency)
+	}
+}
+
+func TestParseResponse_MissingSummary(t *testing.T) {
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "test", "key_points": ["Key point"]}]}`
+
+	_, err := ParseResponse(raw, []string{"Useful"})
+	if err == nil {
+		t.Fatal("expected error for missing summary, got nil")
+	}
+	if !strings.Contains(err.Error(), "summary") {
+		t.Errorf("error should mention summary, got: %v", err)
+	}
+}
+
+func TestParseResponse_MissingKeyPoints(t *testing.T) {
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "test", "summary": "Email summary"}]}`
+
+	_, err := ParseResponse(raw, []string{"Useful"})
+	if err == nil {
+		t.Fatal("expected error for missing key_points, got nil")
+	}
+	if !strings.Contains(err.Error(), "key_points") {
+		t.Errorf("error should mention key_points, got: %v", err)
 	}
 }
 
@@ -172,7 +217,7 @@ func TestParseResponse_EmptyClassificationsArray(t *testing.T) {
 }
 
 func TestParseResponse_UnknownLabel(t *testing.T) {
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "InvalidLabel", "confidence": 0.9, "reason": "test"}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "InvalidLabel", "confidence": 0.9, "reason": "test", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	_, err := ParseResponse(raw, []string{"Useful", "ToDelete", "Ads"})
 	if err == nil {
@@ -185,8 +230,8 @@ func TestParseResponse_UnknownLabel(t *testing.T) {
 
 func TestParseResponse_DuplicateKeys(t *testing.T) {
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "first"},
-		{"uid": 1, "account": "work", "label": "ToDelete", "confidence": 0.8, "reason": "second"}
+		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "first", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 1, "account": "work", "label": "ToDelete", "confidence": 0.8, "reason": "second", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	_, err := ParseResponse(raw, []string{"Useful", "ToDelete"})
@@ -199,7 +244,7 @@ func TestParseResponse_DuplicateKeys(t *testing.T) {
 }
 
 func TestParseResponse_ConfidenceOutOfRange(t *testing.T) {
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 1.5, "reason": "too confident"}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 1.5, "reason": "too confident", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	_, err := ParseResponse(raw, []string{"Useful"})
 	if err == nil {
@@ -211,7 +256,7 @@ func TestParseResponse_ConfidenceOutOfRange(t *testing.T) {
 }
 
 func TestParseResponse_NegativeConfidence(t *testing.T) {
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": -0.5, "reason": "negative"}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": -0.5, "reason": "negative", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	_, err := ParseResponse(raw, []string{"Useful"})
 	if err == nil {
@@ -221,7 +266,7 @@ func TestParseResponse_NegativeConfidence(t *testing.T) {
 
 func TestParseResponse_MissingFields(t *testing.T) {
 	// Missing 'reason' field — should still parse (it's optional in Go).
-	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9}]}`
+	raw := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	results, err := ParseResponse(raw, []string{"Useful"})
 	if err != nil {
@@ -235,8 +280,8 @@ func TestParseResponse_MissingFields(t *testing.T) {
 func TestParseResponse_PartialInvalid(t *testing.T) {
 	// One valid, one invalid — should return partial results with error.
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "good"},
-		{"uid": 2, "account": "work", "label": "Nope", "confidence": 0.5, "reason": "bad"}
+		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "good", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 2, "account": "work", "label": "Nope", "confidence": 0.5, "reason": "bad", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	results, err := ParseResponse(raw, []string{"Useful", "ToDelete"})
@@ -477,7 +522,7 @@ func TestRoundTrip_PromptToParse(t *testing.T) {
 	}
 
 	// Simulate a valid LLM response.
-	llmResponse := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.95, "reason": "Meeting invitation"}]}`
+	llmResponse := `{"classifications": [{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.95, "reason": "Meeting invitation", "summary": "Email summary", "key_points": ["Key point"]}]}`
 
 	results, err := ParseResponse(llmResponse, req.Labels)
 	if err != nil {
@@ -504,8 +549,8 @@ func TestRoundTrip_PromptToParse(t *testing.T) {
 
 func TestParseResponse_AllItemsInvalid(t *testing.T) {
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Invalid1", "confidence": 0.9, "reason": "bad"},
-		{"uid": 2, "account": "work", "label": "Invalid2", "confidence": 0.5, "reason": "also bad"}
+		{"uid": 1, "account": "work", "label": "Invalid1", "confidence": 0.9, "reason": "bad", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 2, "account": "work", "label": "Invalid2", "confidence": 0.5, "reason": "also bad", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	_, err := ParseResponse(raw, []string{"Useful"})
@@ -520,8 +565,8 @@ func TestParseResponse_AllItemsInvalid(t *testing.T) {
 func TestParseResponse_ConfidenceAtBounds(t *testing.T) {
 	// Test confidence at the exact bounds.
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.0, "reason": "zero"},
-		{"uid": 2, "account": "work", "label": "Useful", "confidence": 1.0, "reason": "one"}
+		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.0, "reason": "zero", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 2, "account": "work", "label": "Useful", "confidence": 1.0, "reason": "one", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	results, err := ParseResponse(raw, []string{"Useful"})
@@ -543,8 +588,8 @@ func TestParseResponse_ConfidenceAtBounds(t *testing.T) {
 func TestParseResponse_DifferentAccountsSameUID(t *testing.T) {
 	// Same UID but different accounts — should be valid.
 	raw := `{"classifications": [
-		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "work"},
-		{"uid": 1, "account": "personal", "label": "ToDelete", "confidence": 0.8, "reason": "personal"}
+		{"uid": 1, "account": "work", "label": "Useful", "confidence": 0.9, "reason": "work", "summary": "Email summary", "key_points": ["Key point"]},
+		{"uid": 1, "account": "personal", "label": "ToDelete", "confidence": 0.8, "reason": "personal", "summary": "Email summary", "key_points": ["Key point"]}
 	]}`
 
 	results, err := ParseResponse(raw, []string{"Useful", "ToDelete"})
