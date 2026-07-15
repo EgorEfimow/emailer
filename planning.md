@@ -149,24 +149,25 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 
 **Goal:** Show which senders/domains are producing the most email in the current run.
 
-- [ ] In `internal/orchestrator/orchestrator.go`, parse sender addresses/domains from message metadata:
+- [x] In `internal/orchestrator/orchestrator.go`, parse sender addresses/domains from message metadata:
   - Normalize domains to lowercase
   - Handle malformed/missing sender fields safely
-- [ ] Compute top senders and top domains globally and per account (bounded to 5 entries).
-- [ ] Add top-sender/domain fields to `DigestStats` and `AccountStats`:
+- [x] Compute top senders and top domains globally and per account (bounded to 5 entries).
+- [x] Add top-sender/domain fields to `DigestStats` and `AccountStats`:
   ```go
   TopSenders  []string // e.g., ["sender@example.com", ...]
   TopDomains  []string // e.g., ["example.com", ...]
   ```
-- [ ] In `internal/digest/markdown.go`, render a compact "Top senders" / "Noisiest domains" block in the statistics section.
-- [ ] Add tests for sender/domain parsing and rendering in `internal/orchestrator/orchestrator_test.go` and `internal/digest/markdown_test.go`.
+- [x] In `internal/digest/markdown.go`, render a compact "Top senders" / "Noisiest domains" block in the statistics section.
+- [x] Add tests for sender/domain parsing and rendering in `internal/orchestrator/orchestrator_test.go` and `internal/digest/markdown_test.go`.
 
 ---
 
 ## Implementation Notes
 - **Design divergence:** The structured analysis model was implemented by extending `mail.Classification` (not as a separate `EmailAnalysis` type). `llm.Response.Classifications` carries `[]mail.Classification`.
 - **Stats models:** Global stats are named `DigestStats`; per-account stats are `AccountStats`. Both are fully implemented.
-- **Rendering gaps:** Summary/key points and action items are not yet rendered in the Markdown template. Sender/domain aggregation is not implemented.
+- **Sender/domain aggregation:** Implemented in `orchestrator.buildDigestStats` with `parseSender` and `topN` helpers. Format: `"addr (count)"`. Top senders/domains render in both global summary and per-account stats sections.
+- **Rendering gaps:** All features rendered.
 
 ## Phase 8 — "What Changed" Highlights
 

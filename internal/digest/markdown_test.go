@@ -808,6 +808,137 @@ func TestMarkdownRenderer_FallbackToExcerptWhenNoSummary(t *testing.T) {
 	}
 }
 
+func TestMarkdownRenderer_RendersTopSendersAndDomainsInGlobalStats(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:           "run-senders",
+		GeneratedAt:     now,
+		TotalFetched:    3,
+		TotalClassified: 3,
+		GlobalStats: DigestStats{
+			FetchedCount:    3,
+			ClassifiedCount: 3,
+			CountsByLabel:   map[string]int{"Useful": 3},
+			TopSenders:      []string{"alice@example.com (2)", "bob@example.com (1)"},
+			TopDomains:      []string{"example.com (3)"},
+		},
+		Messages: []MessageEntry{
+			{Subject: "A", From: "alice@example.com", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}, IsRead: true},
+			{Subject: "B", From: "alice@example.com", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}, IsRead: true},
+			{Subject: "C", From: "bob@example.com", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}, IsRead: true},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	if !strings.Contains(result, "**Top senders:**") {
+		t.Fatalf("result missing 'Top senders' section:\n%s", result)
+	}
+	if !strings.Contains(result, "- alice@example.com (2)") {
+		t.Fatalf("result missing top sender entry:\n%s", result)
+	}
+	if !strings.Contains(result, "- bob@example.com (1)") {
+		t.Fatalf("result missing second top sender entry:\n%s", result)
+	}
+	if !strings.Contains(result, "**Noisiest domains:**") {
+		t.Fatalf("result missing 'Noisiest domains' section:\n%s", result)
+	}
+	if !strings.Contains(result, "- example.com (3)") {
+		t.Fatalf("result missing top domain entry:\n%s", result)
+	}
+}
+
+func TestMarkdownRenderer_OmitsTopSendersWhenEmpty(t *testing.T) {
+	now := time.Now()
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-no-senders",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{Subject: "A", From: "", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	if strings.Contains(result, "**Top senders:**") {
+		t.Fatal("'Top senders' should not appear when empty")
+	}
+	if strings.Contains(result, "**Noisiest domains:**") {
+		t.Fatal("'Noisiest domains' should not appear when empty")
+	}
+}
+
+func TestMarkdownRenderer_RendersTopSendersAndDomainsInAccountStats(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:           "run-acct-senders",
+		GeneratedAt:     now,
+		TotalFetched:    2,
+		TotalClassified: 2,
+		GlobalStats: DigestStats{
+			FetchedCount: 2, ClassifiedCount: 2,
+			CountsByLabel: map[string]int{"Useful": 2},
+			TopSenders:    []string{"alice@example.com (2)"},
+			TopDomains:    []string{"example.com (2)"},
+		},
+		AccountStats: []AccountStats{
+			{
+				AccountLabel:    "work",
+				FetchedCount:    2,
+				ClassifiedCount: 2,
+				CountsByLabel:   map[string]int{"Useful": 2},
+				TopSenders:      []string{"alice@example.com (2)"},
+				TopDomains:      []string{"example.com (2)"},
+			},
+		},
+		Messages: []MessageEntry{
+			{Subject: "A", From: "alice@example.com", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}, IsRead: true},
+			{Subject: "B", From: "alice@example.com", Date: now, Classification: mail.Classification{Label: "Useful", Confidence: 0.9}, IsRead: true},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	if !strings.Contains(result, "### work") {
+		t.Fatalf("result missing account section:\n%s", result)
+	}
+	// Both global and per-account top senders appear; verify there are at
+	// least two occurrences (global + account).
+	count := strings.Count(result, "**Top senders:**")
+	if count < 2 {
+		t.Fatalf("expected at least 2 'Top senders' sections (global + account), got %d:\n%s", count, result)
+	}
+	// Verify the account section has its own top sender entries.
+	acctSection := result[strings.Index(result, "### work"):]
+	if !strings.Contains(acctSection, "**Top senders:**") {
+		t.Fatalf("account section missing 'Top senders':\n%s", acctSection)
+	}
+	if !strings.Contains(acctSection, "- alice@example.com (2)") {
+		t.Fatalf("account section missing top sender entry:\n%s", acctSection)
+	}
+	if !strings.Contains(acctSection, "**Noisiest domains:**") {
+		t.Fatalf("account section missing 'Noisiest domains':\n%s", acctSection)
+	}
+	if !strings.Contains(acctSection, "- example.com (2)") {
+		t.Fatalf("account section missing top domain entry:\n%s", acctSection)
+	}
+}
+
 func TestMarkdownRenderer_MixedContent(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	r := NewMarkdownRenderer(true, 200)

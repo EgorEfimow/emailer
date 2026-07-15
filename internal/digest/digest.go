@@ -46,6 +46,10 @@ type DigestStats struct {
 	AccountsFailed int
 	// HighPriorityCount is the number of high-priority classifications.
 	HighPriorityCount int
+	// TopSenders lists the most frequent senders (format: "addr (count)").
+	TopSenders []string
+	// TopDomains lists the most frequent domains (format: "domain (count)").
+	TopDomains []string
 }
 
 // AccountStats captures aggregate counts and fetch status for one account.
@@ -59,6 +63,10 @@ type AccountStats struct {
 	CountsByLabel   map[string]int
 	Status          string
 	Error           string
+	// TopSenders lists the most frequent senders for this account.
+	TopSenders []string
+	// TopDomains lists the most frequent domains for this account.
+	TopDomains []string
 }
 
 // ---------------------------------------------------------------------------

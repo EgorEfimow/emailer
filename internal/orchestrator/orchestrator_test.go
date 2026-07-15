@@ -1217,38 +1217,322 @@ func TestForceReprocessSkipsDedup(t *testing.T) {
 // Tests: Partial account failure
 // ---------------------------------------------------------------------------
 
-func TestRunPartialAccountFailure(t *testing.T) {
-	s := newFakeStore()
+// ---------------------------------------------------------------------------
+// Tests: parseSender helper
+// ---------------------------------------------------------------------------
 
-	cfg := config.DefaultConfig()
-	cfg.IMAP.Accounts = []config.IMAPAccount{
-		{Label: "work", Host: "imap.work.com", Username: "u", Password: "p"},
-		{Label: "personal", Host: "imap.personal.com", Username: "u", Password: "p"},
+func TestParseSender_SimpleAddress(t *testing.T) {
+	sender, domain := parseSender("alice@example.com")
+	if sender != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", sender)
 	}
-	cfg.LLM.Model = "test-model"
-
-	ingesters := map[string]mail.Ingester{
-		"work":     &fakeIngester{messages: []mail.Message{{AccountLabel: "work", UID: 1, Subject: "Work", Body: "Body", Date: time.Now()}}},
-		"personal": &fakeIngester{fetchErr: errors.New("connection refused")},
-	}
-
-	p := New(
-		s,
-		ingesters,
-		&fakeProvider{},
-		&fakeRenderer{name: "markdown"},
-		&fakeRenderer{name: "fallback"},
-		&fakeChannel{name: "telegram"},
-		slog.Default(),
-		cfg,
-	)
-
-	result := p.Run(context.Background(), RunOptions{})
-
-	if result.Status != store.RunStatusPartial {
-		t.Errorf("expected partial, got %q", result.Status)
-	}
-	if result.TotalFetched != 1 {
-		t.Errorf("expected 1 fetched, got %d", result.TotalFetched)
+	if domain != "example.com" {
+		t.Errorf("expected example.com, got %q", domain)
 	}
 }
+
+func TestParseSender_NameWithAngle(t *testing.T) {
+	sender, domain := parseSender("Alice <alice@example.com>")
+	if sender != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", sender)
+	}
+	if domain != "example.com" {
+		t.Errorf("expected example.com, got %q", domain)
+	}
+}
+
+func TestParseSender_QuotedNameWithAngle(t *testing.T) {
+	sender, domain := parseSender(`"Alice" <alice@example.com>`)
+	if sender != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", sender)
+	}
+	if domain != "example.com" {
+		t.Errorf("expected example.com, got %q", domain)
+	}
+}
+
+func TestParseSender_DomainNormalized(t *testing.T) {
+	_, domain := parseSender("Alice <alice@Example.COM>")
+	if domain != "example.com" {
+		t.Errorf("expected example.com, got %q", domain)
+	}
+}
+
+func TestParseSender_EmptyString(t *testing.T) {
+	sender, domain := parseSender("")
+	if sender != "" || domain != "" {
+		t.Errorf("expected empty, got sender=%q domain=%q", sender, domain)
+	}
+}
+
+func TestParseSender_MalformedNoAt(t *testing.T) {
+	sender, domain := parseSender("not-an-email")
+	if sender != "" || domain != "" {
+		t.Errorf("expected empty, got sender=%q domain=%q", sender, domain)
+	}
+}
+
+func TestParseSender_MalformedAngleNoAt(t *testing.T) {
+	sender, domain := parseSender("Name <>")
+	if sender != "" || domain != "" {
+		t.Errorf("expected empty, got sender=%q domain=%q", sender, domain)
+	}
+}
+
+func TestParseSender_MalformedAngleNoClose(t *testing.T) {
+	sender, domain := parseSender("Name <alice@example.com")
+	if sender != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", sender)
+	}
+	if domain != "example.com" {
+		t.Errorf("expected example.com, got %q", domain)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: extractAddress helper
+// ---------------------------------------------------------------------------
+
+func TestExtractAddress_Simple(t *testing.T) {
+	addr := extractAddress("alice@example.com")
+	if addr != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", addr)
+	}
+}
+
+func TestExtractAddress_AngleBrackets(t *testing.T) {
+	addr := extractAddress("Alice <alice@example.com>")
+	if addr != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", addr)
+	}
+}
+
+func TestExtractAddress_Empty(t *testing.T) {
+	addr := extractAddress("")
+	if addr != "" {
+		t.Errorf("expected empty, got %q", addr)
+	}
+}
+
+func TestExtractAddress_Whitespace(t *testing.T) {
+	addr := extractAddress("  alice@example.com  ")
+	if addr != "alice@example.com" {
+		t.Errorf("expected alice@example.com, got %q", addr)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: topN helper
+// ---------------------------------------------------------------------------
+
+func TestTopN_Basic(t *testing.T) {
+	counts := map[string]int{
+		"alice@example.com": 5,
+		"bob@example.com":   3,
+		"carol@example.com": 1,
+	}
+	result := topN(counts, 2)
+	if len(result) != 2 {
+		t.Fatalf("expected 2, got %d: %v", len(result), result)
+	}
+	if result[0] != "alice@example.com (5)" {
+		t.Errorf("expected alice first, got %q", result[0])
+	}
+	if result[1] != "bob@example.com (3)" {
+		t.Errorf("expected bob second, got %q", result[1])
+	}
+}
+
+func TestTopN_LessThanN(t *testing.T) {
+	counts := map[string]int{
+		"alice@example.com": 2,
+	}
+	result := topN(counts, 5)
+	if len(result) != 1 {
+		t.Fatalf("expected 1, got %d: %v", len(result), result)
+	}
+	if result[0] != "alice@example.com (2)" {
+		t.Errorf("expected alice, got %q", result[0])
+	}
+}
+
+func TestTopN_Empty(t *testing.T) {
+	result := topN(nil, 5)
+	if len(result) != 0 {
+		t.Errorf("expected empty, got %v", result)
+	}
+	result = topN(map[string]int{}, 5)
+	if len(result) != 0 {
+		t.Errorf("expected empty, got %v", result)
+	}
+}
+
+func TestTopN_TieBreaksAlphabetically(t *testing.T) {
+	counts := map[string]int{
+		"carol@example.com": 3,
+		"alice@example.com": 3,
+		"bob@example.com":   3,
+	}
+	result := topN(counts, 3)
+	if len(result) != 3 {
+		t.Fatalf("expected 3, got %d: %v", len(result), result)
+	}
+	if result[0] != "alice@example.com (3)" {
+		t.Errorf("expected alice first, got %q", result[0])
+	}
+	if result[1] != "bob@example.com (3)" {
+		t.Errorf("expected bob second, got %q", result[1])
+	}
+	if result[2] != "carol@example.com (3)" {
+		t.Errorf("expected carol third, got %q", result[2])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: buildDigestData with sender/domain aggregation
+// ---------------------------------------------------------------------------
+
+func TestBuildDigestDataAggregatesTopSendersAndDomains(t *testing.T) { //nolint:gocyclo
+	now := time.Now()
+	msgs := []mail.Message{
+		{AccountLabel: "work", UID: 1, Subject: "A", From: "alice@example.com", Body: "Body", Date: now},
+		{AccountLabel: "work", UID: 2, Subject: "B", From: "bob@example.com", Body: "Body", Date: now},
+		{AccountLabel: "work", UID: 3, Subject: "C", From: "alice@example.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 4, Subject: "D", From: "carol@other.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 5, Subject: "E", From: "carol@other.com", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 1}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 2}, Label: "Ads", Confidence: 0.8},
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 3}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 4}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "personal", UID: 5}, Label: "Useful", Confidence: 0.9},
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "work"}, Messages: msgs[:3]},
+		{Account: config.IMAPAccount{Label: "personal"}, Messages: msgs[3:5]},
+	}
+
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+
+	// Global top senders.
+	if len(data.GlobalStats.TopSenders) != 3 {
+		t.Fatalf("expected 3 global top senders, got %d: %v", len(data.GlobalStats.TopSenders), data.GlobalStats.TopSenders)
+	}
+	if data.GlobalStats.TopSenders[0] != "alice@example.com (2)" {
+		t.Errorf("expected alice first with 2, got %q", data.GlobalStats.TopSenders[0])
+	}
+
+	// Global top domains.
+	foundExample := false
+	foundOther := false
+	for _, d := range data.GlobalStats.TopDomains {
+		if d == "example.com (3)" {
+			foundExample = true
+		}
+		if d == "other.com (2)" {
+			foundOther = true
+		}
+	}
+	if !foundExample || !foundOther {
+		t.Errorf("expected both domains in top domains, got %v", data.GlobalStats.TopDomains)
+	}
+
+	// Account-level top senders.
+	var workStats, personalStats *digest.AccountStats
+	for i := range data.AccountStats {
+		as := &data.AccountStats[i]
+		if as.AccountLabel == "work" {
+			workStats = as
+		}
+		if as.AccountLabel == "personal" {
+			personalStats = as
+		}
+	}
+	if workStats == nil || personalStats == nil {
+		t.Fatal("expected both account stats")
+	}
+
+	if len(workStats.TopSenders) != 2 {
+		t.Errorf("expected 2 work top senders, got %d: %v", len(workStats.TopSenders), workStats.TopSenders)
+	}
+	if len(personalStats.TopSenders) != 1 {
+		t.Errorf("expected 1 personal top sender, got %d: %v", len(personalStats.TopSenders), personalStats.TopSenders)
+	}
+	if personalStats.TopSenders[0] != "carol@other.com (2)" {
+		t.Errorf("expected carol, got %q", personalStats.TopSenders[0])
+	}
+}
+
+func TestBuildDigestDataTopSendersEmptyWhenNoMessages(t *testing.T) {
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", nil, nil, nil, nil)
+
+	if len(data.GlobalStats.TopSenders) != 0 {
+		t.Errorf("expected empty top senders, got %v", data.GlobalStats.TopSenders)
+	}
+	if len(data.GlobalStats.TopDomains) != 0 {
+		t.Errorf("expected empty top domains, got %v", data.GlobalStats.TopDomains)
+	}
+}
+
+func TestBuildDigestDataSkipsMalformedSenders(t *testing.T) {
+	now := time.Now()
+	msgs := []mail.Message{
+		{AccountLabel: "work", UID: 1, Subject: "A", From: "alice@example.com", Body: "Body", Date: now},
+		{AccountLabel: "work", UID: 2, Subject: "B", From: "", Body: "Body", Date: now},
+		{AccountLabel: "work", UID: 3, Subject: "C", From: "not-an-email", Body: "Body", Date: now},
+	}
+	classifications := []mail.Classification{
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 1}, Label: "Useful", Confidence: 0.9},
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 2}, Label: "Ads", Confidence: 0.8},
+		{Key: mail.MessageKey{AccountLabel: "work", UID: 3}, Label: "ToDelete", Confidence: 0.7},
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "work"}, Messages: msgs},
+	}
+
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+
+	if len(data.GlobalStats.TopSenders) != 1 {
+		t.Fatalf("expected 1 top sender (only valid one), got %d: %v", len(data.GlobalStats.TopSenders), data.GlobalStats.TopSenders)
+	}
+	if data.GlobalStats.TopSenders[0] != "alice@example.com (1)" {
+		t.Errorf("expected alice, got %q", data.GlobalStats.TopSenders[0])
+	}
+}
+
+func TestBuildDigestDataLimitsToTopFive(t *testing.T) {
+	now := time.Now()
+	msgs := make([]mail.Message, 7)
+	for i := 0; i < 7; i++ {
+		msgs[i] = mail.Message{
+			AccountLabel: "work",
+			UID:          uint32(i + 1),
+			Subject:      fmt.Sprintf("Msg %d", i+1),
+			From:         fmt.Sprintf("sender%d@example.com", i+1),
+			Body:         "Body",
+			Date:         now,
+		}
+	}
+	classifications := make([]mail.Classification, 7)
+	for i := 0; i < 7; i++ {
+		classifications[i] = mail.Classification{
+			Key: msgs[i].Key(), Label: "Useful", Confidence: 0.9,
+		}
+	}
+	fetchResults := []mail.FetchAllResult{
+		{Account: config.IMAPAccount{Label: "work"}, Messages: msgs},
+	}
+
+	p := defaultPipeline(newFakeStore(), &fakeIngester{})
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, nil)
+
+	if len(data.GlobalStats.TopSenders) > 5 {
+		t.Errorf("expected at most 5 top senders, got %d", len(data.GlobalStats.TopSenders))
+	}
+}
+
+

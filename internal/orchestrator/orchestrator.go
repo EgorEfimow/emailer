@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -560,6 +561,12 @@ func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, cl
 		}
 	}
 
+	// Track sender/domain frequencies globally and per-account.
+	globalSenderCounts := make(map[string]int)
+	globalDomainCounts := make(map[string]int)
+	accountSenderCounts := make(map[string]map[string]int)
+	accountDomainCounts := make(map[string]map[string]int)
+
 	for _, m := range messages {
 		stats := ensureAccount(m.AccountLabel)
 		stats.FetchedCount++
@@ -570,26 +577,11 @@ func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, cl
 			global.UnreadCount++
 			stats.UnreadCount++
 		}
+		trackMessageSenders(m, globalSenderCounts, globalDomainCounts,
+			accountSenderCounts, accountDomainCounts)
 	}
 
-	for _, entry := range entries {
-		label := entry.Classification.Label
-		if label == "" {
-			label = "Unknown"
-		}
-		global.CountsByLabel[label]++
-		stats := ensureAccount(entry.Classification.Key.AccountLabel)
-		stats.CountsByLabel[label]++
-		if classifiedKeys[entry.Classification.Key] {
-			stats.ClassifiedCount++
-			if strings.EqualFold(entry.Classification.Priority, "high") {
-				global.HighPriorityCount++
-			}
-		} else {
-			global.FailedCount++
-			stats.FailedCount++
-		}
-	}
+	processClassificationEntries(entries, &global, ensureAccount, classifiedKeys)
 
 	global.AccountsChecked = len(accountOrder)
 	for _, label := range accountOrder {
@@ -598,6 +590,15 @@ func buildDigestStats(messages []mail.Message, entries []digest.MessageEntry, cl
 		}
 	}
 	global.AccountsSucceeded = global.AccountsChecked - global.AccountsFailed
+
+	// Compute top 5 senders/domains.
+	global.TopSenders = topN(globalSenderCounts, 5)
+	global.TopDomains = topN(globalDomainCounts, 5)
+	for _, label := range accountOrder {
+		stats := accountByLabel[label]
+		stats.TopSenders = topN(accountSenderCounts[label], 5)
+		stats.TopDomains = topN(accountDomainCounts[label], 5)
+	}
 
 	accounts := make([]digest.AccountStats, 0, len(accountOrder))
 	for _, label := range accountOrder {
@@ -758,4 +759,112 @@ func truncateExcerpt(body string, limit int) string {
 		return body
 	}
 	return body[:limit] + "…"
+}
+
+// ---------------------------------------------------------------------------
+// Sender/domain helpers
+// ---------------------------------------------------------------------------
+
+// parseSender extracts the sender address and domain from a From header value.
+// It handles "addr", "Name <addr>", and malformed inputs gracefully.
+func parseSender(from string) (sender, domain string) {
+	addr := extractAddress(from)
+	if addr == "" {
+		return "", ""
+	}
+	if idx := strings.LastIndex(addr, "@"); idx > 0 && idx < len(addr)-1 {
+		return addr, strings.ToLower(addr[idx+1:])
+	}
+	return "", ""
+}
+
+// extractAddress extracts an email address from a From header value.
+// Supports "addr", "Name <addr>", `"Name" <addr>`, and unclosed brackets.
+func extractAddress(from string) string {
+	from = strings.TrimSpace(from)
+	if from == "" {
+		return ""
+	}
+	// Look for angle-bracket pattern: anything <addr> or <addr (unclosed).
+	if open := strings.LastIndex(from, "<"); open >= 0 {
+		close := strings.LastIndex(from, ">")
+		if close < 0 {
+			close = len(from)
+		}
+		if close > open {
+			return strings.TrimSpace(from[open+1 : close])
+		}
+	}
+	// No angle brackets — treat the whole string as the address.
+	return from
+}
+
+// processClassificationEntries iterates classification entries, populating
+// label counts, classified/failed counts, and high-priority tracking.
+func processClassificationEntries(entries []digest.MessageEntry, global *digest.DigestStats, ensureAccount func(string) *digest.AccountStats, classifiedKeys map[mail.MessageKey]bool) {
+	for _, entry := range entries {
+		label := entry.Classification.Label
+		if label == "" {
+			label = "Unknown"
+		}
+		global.CountsByLabel[label]++
+		stats := ensureAccount(entry.Classification.Key.AccountLabel)
+		stats.CountsByLabel[label]++
+		if classifiedKeys[entry.Classification.Key] {
+			stats.ClassifiedCount++
+			if strings.EqualFold(entry.Classification.Priority, "high") {
+				global.HighPriorityCount++
+			}
+		} else {
+			global.FailedCount++
+			stats.FailedCount++
+		}
+	}
+}
+
+// trackMessageSenders parses sender/domain from a single message and
+// records counts into the provided frequency maps.
+func trackMessageSenders(m mail.Message, globalSenderCounts, globalDomainCounts map[string]int, accountSenderCounts, accountDomainCounts map[string]map[string]int) {
+	sender, domain := parseSender(m.From)
+	if sender != "" {
+		globalSenderCounts[sender]++
+		if accountSenderCounts[m.AccountLabel] == nil {
+			accountSenderCounts[m.AccountLabel] = make(map[string]int)
+		}
+		accountSenderCounts[m.AccountLabel][sender]++
+	}
+	if domain != "" {
+		globalDomainCounts[domain]++
+		if accountDomainCounts[m.AccountLabel] == nil {
+			accountDomainCounts[m.AccountLabel] = make(map[string]int)
+		}
+		accountDomainCounts[m.AccountLabel][domain]++
+	}
+}
+
+// topN returns the top N entries from a frequency map, sorted by count
+// descending, formatted as "key (count)".
+func topN(counts map[string]int, n int) []string {
+	type kv struct {
+		key   string
+		count int
+	}
+	sorted := make([]kv, 0, len(counts))
+	for k, v := range counts {
+		sorted = append(sorted, kv{k, v})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].count != sorted[j].count {
+			return sorted[i].count > sorted[j].count
+		}
+		return sorted[i].key < sorted[j].key
+	})
+	if len(sorted) > n {
+		sorted = sorted[:n]
+	}
+	result := make([]string, len(sorted))
+	for i, kv := range sorted {
+		result[i] = fmt.Sprintf("%s (%d)", kv.key, kv.count)
+	}
+	return result
 }

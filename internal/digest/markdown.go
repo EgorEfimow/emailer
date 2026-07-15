@@ -273,6 +273,18 @@ const markdownTemplate = `# 📧 Email Digest
 **Unread:** {{.GlobalStats.UnreadCount}}
 {{- end}}
 **Labels:**{{range labelCounts .GlobalStats.CountsByLabel}} {{.Label}}={{.Count}}{{end}}
+{{- if .GlobalStats.TopSenders}}
+**Top senders:**
+{{- range .GlobalStats.TopSenders}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if .GlobalStats.TopDomains}}
+**Noisiest domains:**
+{{- range .GlobalStats.TopDomains}}
+- {{.}}
+{{- end}}
+{{- end}}
 **Messages:** {{.TotalMessages}} classified ({{.TotalFetched}} fetched, {{.FailedCount}} failed)
 
 ## Account Stats
@@ -286,6 +298,18 @@ const markdownTemplate = `# 📧 Email Digest
 **Read:** {{.ReadCount}} | **Unread:** {{.UnreadCount}}
 {{- end}}
 **Labels:**{{range labelCounts .CountsByLabel}} {{.Label}}={{.Count}}{{end}}
+{{- if .TopSenders}}
+**Top senders:**
+{{- range .TopSenders}}
+- {{.}}
+{{- end}}
+{{- end}}
+{{- if .TopDomains}}
+**Noisiest domains:**
+{{- range .TopDomains}}
+- {{.}}
+{{- end}}
+{{- end}}
 {{- if .Error}}
 ⚠️ **Fetch error:** {{.Error}}
 {{- end}}
