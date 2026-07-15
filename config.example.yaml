@@ -13,8 +13,8 @@
 # LLM Provider
 # ---------------------------------------------------------------------------
 llm:
-  provider: gemini                # one of: gemini, ollama, openrouter
-  api_key: "your-api-key-here"    # 🔒 secret — redacted in logs
+  provider: gemini                # one of: gemini, ollama, openrouter, mistral
+  api_key: "your-llm-api-key-here" # 🔒 secret — redacted in logs
   model: gemini-2.0-flash
   # endpoint: ""                  # optional provider URL override
   timeout: 120s
