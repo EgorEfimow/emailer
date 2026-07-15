@@ -392,7 +392,8 @@ func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 				CountsByLabel: map[string]int{
 					"Ads": 1,
 				},
-				FetchError: "imap timeout",
+				Status: "error",
+				Error:  "imap timeout",
 			},
 		},
 		Messages: []MessageEntry{
@@ -430,7 +431,7 @@ func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 		"**Read:** 1 | **Unread:** 1",
 		"**Labels:** Unknown=1 Useful=1",
 		"### personal",
-		"**Fetch error:** imap timeout",
+		"⚠️ **Fetch error:** imap timeout",
 		"## Useful (1)",
 		"### 1. Project update",
 	}

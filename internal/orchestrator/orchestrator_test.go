@@ -151,9 +151,10 @@ var _ llm.Provider = (*fakeProvider)(nil)
 
 // fakeRenderer implements digest.Renderer for testing.
 type fakeRenderer struct {
-	output string
-	err    error
-	name   string
+	output   string
+	err      error
+	name     string
+	lastData digest.DigestData
 }
 
 func (f *fakeRenderer) Name() string {
@@ -163,7 +164,8 @@ func (f *fakeRenderer) Name() string {
 	return "test-renderer"
 }
 
-func (f *fakeRenderer) Render(_ context.Context, _ digest.DigestData) (string, error) {
+func (f *fakeRenderer) Render(_ context.Context, data digest.DigestData) (string, error) {
+	f.lastData = data
 	return f.output, f.err
 }
 
@@ -757,6 +759,51 @@ func TestRunDigestDelivery(t *testing.T) {
 	}
 }
 
+func TestRunPartialAccountFailureExposesErrorToDigest(t *testing.T) {
+	now := time.Now()
+	fakeStore := newFakeStore()
+	renderer := &fakeRenderer{name: "markdown", output: "# Digest"}
+	cfg := config.DefaultConfig()
+	cfg.IMAP.Accounts = []config.IMAPAccount{
+		{Label: "work", Host: "imap.example.com", Username: "u", Password: "p"},
+		{Label: "personal", Host: "imap.example.com", Username: "u", Password: "p"},
+	}
+	cfg.LLM.Model = "test-model"
+
+	msg := mail.Message{AccountLabel: "work", UID: 1, Subject: "A", Body: "Body", Date: now}
+	p := New(
+		fakeStore,
+		map[string]mail.Ingester{
+			"work":     &fakeIngester{messages: []mail.Message{msg}},
+			"personal": &fakeIngester{fetchErr: errors.New("imap timeout")},
+		},
+		&fakeProvider{response: llm.Response{Classifications: []mail.Classification{{Key: msg.Key(), Label: "Useful", Confidence: 0.9}}}},
+		renderer,
+		&fakeRenderer{name: "fallback", output: "# Fallback"},
+		&fakeChannel{name: "telegram"},
+		slog.Default(),
+		cfg,
+	)
+
+	result := p.Run(context.Background(), RunOptions{DryRun: true})
+	if result.Status != store.RunStatusPartial {
+		t.Fatalf("expected partial status, got %s", result.Status)
+	}
+
+	found := false
+	for _, stats := range renderer.lastData.AccountStats {
+		if stats.AccountLabel == "personal" {
+			found = true
+			if stats.Status != "error" || stats.Error != "imap timeout" {
+				t.Fatalf("expected personal account error in digest data, got %#v", stats)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected personal account stats in digest data: %#v", renderer.lastData.AccountStats)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Tests: buildDigestData helper
 // ---------------------------------------------------------------------------
@@ -789,7 +836,7 @@ func TestBuildDigestData(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, nil)
+	data := p.buildDigestData("run-1", msgs, classifications, nil, nil)
 
 	if data.RunID != "run-1" {
 		t.Errorf("expected run-1, got %q", data.RunID)
@@ -822,7 +869,7 @@ func TestBuildDigestDataWithoutClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, nil, nil)
+	data := p.buildDigestData("run-1", msgs, nil, nil, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -851,7 +898,7 @@ func TestBuildDigestDataPartialClassifications(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, nil)
+	data := p.buildDigestData("run-1", msgs, classifications, nil, nil)
 
 	if len(data.Messages) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(data.Messages))
@@ -882,7 +929,7 @@ func TestBuildDigestDataAggregatesStats(t *testing.T) {
 	}
 
 	p := defaultPipeline(newFakeStore(), &fakeIngester{})
-	data := p.buildDigestData("run-1", msgs, classifications, fetchResults)
+	data := p.buildDigestData("run-1", msgs, classifications, fetchResults, mail.AccountErrors(fetchResults))
 
 	if data.GlobalStats.FetchedCount != 2 {
 		t.Errorf("expected 2 global fetched, got %d", data.GlobalStats.FetchedCount)
@@ -905,7 +952,7 @@ func TestBuildDigestDataAggregatesStats(t *testing.T) {
 	if data.AccountStats[0].AccountLabel != "work" || data.AccountStats[0].FetchedCount != 2 || data.AccountStats[0].ClassifiedCount != 1 || data.AccountStats[0].FailedCount != 1 {
 		t.Errorf("unexpected work account stats: %#v", data.AccountStats[0])
 	}
-	if data.AccountStats[1].AccountLabel != "personal" || data.AccountStats[1].FetchError == "" {
+	if data.AccountStats[1].AccountLabel != "personal" || data.AccountStats[1].Status != "error" || data.AccountStats[1].Error == "" {
 		t.Errorf("unexpected personal account stats: %#v", data.AccountStats[1])
 	}
 }

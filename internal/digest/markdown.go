@@ -218,8 +218,8 @@ const markdownTemplate = `# 📧 Email Digest
 **Read:** {{.ReadCount}} | **Unread:** {{.UnreadCount}}
 {{- end}}
 **Labels:**{{range labelCounts .CountsByLabel}} {{.Label}}={{.Count}}{{end}}
-{{- if .FetchError}}
-**Fetch error:** {{.FetchError}}
+{{- if .Error}}
+⚠️ **Fetch error:** {{.Error}}
 {{- end}}
 
 {{- end}}

@@ -48,7 +48,8 @@ type AccountStats struct {
 	ReadCount       int
 	UnreadCount     int
 	CountsByLabel   map[string]int
-	FetchError      string
+	Status          string
+	Error           string
 }
 
 // ---------------------------------------------------------------------------
