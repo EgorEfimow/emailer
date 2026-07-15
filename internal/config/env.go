@@ -32,6 +32,7 @@ func loadEnv(cfg *Config) error {
 	errs = appendErr(errs, loadDuration(envPrefix+"LLM_TIMEOUT", &cfg.LLM.Timeout))
 	errs = appendErr(errs, loadInt(envPrefix+"LLM_MAX_RETRIES", &cfg.LLM.MaxRetries))
 	errs = appendErr(errs, loadInt(envPrefix+"LLM_MAX_CONCURRENT", &cfg.LLM.MaxConcurrent))
+	errs = appendErr(errs, loadInt(envPrefix+"LLM_ANALYSIS_REPAIR_MAX_ATTEMPTS", &cfg.LLM.AnalysisRepairMaxAttempts))
 
 	// ── IMAP single account ──────────────────────────────────────────
 	// If EMAILER_IMAP_HOST is set, create one account from env vars.

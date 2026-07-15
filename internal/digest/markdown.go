@@ -47,16 +47,17 @@ func (r *MarkdownRenderer) Name() string {
 func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, error) {
 	tmpl, err := template.New("digest").
 		Funcs(template.FuncMap{
-			"formatTime":  formatTime,
-			"readBadge":   r.readBadge,
-			"truncate":    r.truncate,
-			"joinLabels":  joinLabels,
-			"labelCounts": labelCounts,
-			"add1":        func(n int) int { return n + 1 },
-			"mul":         func(a, b float64) float64 { return a * b },
-			"priority":    displayPriority,
-			"hasSummary":  func(c mail.Classification) bool { return strings.TrimSpace(c.Summary) != "" },
-			"now":         time.Now,
+			"formatTime":       formatTime,
+			"readBadge":        r.readBadge,
+			"truncate":         r.truncate,
+			"joinLabels":       joinLabels,
+			"labelCounts":      labelCounts,
+			"add1":             func(n int) int { return n + 1 },
+			"mul":              func(a, b float64) float64 { return a * b },
+			"priority":         displayPriority,
+			"hasSummary":       func(c mail.Classification) bool { return strings.TrimSpace(c.Summary) != "" },
+			"hasAnalysisError": func(c mail.Classification) bool { return c.AnalysisError != nil },
+			"now":              time.Now,
 		}).
 		Parse(markdownTemplate)
 	if err != nil {
@@ -79,22 +80,22 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, map[string]any{
-		"RunID":               data.RunID,
-		"GeneratedAt":         data.GeneratedAt,
-		"AccountLabel":        data.AccountLabel,
-		"TotalFetched":        data.TotalFetched,
-		"TotalClassified":     data.TotalClassified,
-		"FailedCount":         data.FailedCount,
-		"Groups":              groups,
-		"Labels":              labels,
-		"TotalMessages":       len(data.Messages),
-		"GlobalStats":         stats,
-		"AccountStats":        data.AccountStats,
-		"IncludeReadStatus":   r.IncludeReadStatus,
-		"HighPriority":        highPriority,
-		"HasHighPriority":     len(highPriority) > 0,
-		"Highlights":          data.Highlights,
-		"HasHighlights":       data.Highlights != nil,
+		"RunID":             data.RunID,
+		"GeneratedAt":       data.GeneratedAt,
+		"AccountLabel":      data.AccountLabel,
+		"TotalFetched":      data.TotalFetched,
+		"TotalClassified":   data.TotalClassified,
+		"FailedCount":       data.FailedCount,
+		"Groups":            groups,
+		"Labels":            labels,
+		"TotalMessages":     len(data.Messages),
+		"GlobalStats":       stats,
+		"AccountStats":      data.AccountStats,
+		"IncludeReadStatus": r.IncludeReadStatus,
+		"HighPriority":      highPriority,
+		"HasHighPriority":   len(highPriority) > 0,
+		"Highlights":        data.Highlights,
+		"HasHighlights":     data.Highlights != nil,
 	}); err != nil {
 		return "", fmt.Errorf("digest.markdown.execute: %w", err)
 	}
@@ -381,6 +382,10 @@ No account stats available.
 - {{.}}
 {{- end}}
 {{- end}}
+{{- else if hasAnalysisError $entry.Classification}}
+⚠️ **Analysis failed ({{$entry.Classification.AnalysisError.Stage}}):** {{$entry.Classification.AnalysisError.Error}}
+
+> {{truncate $entry.Excerpt}}
 {{- else}}
 > {{truncate $entry.Excerpt}}
 {{- end}}

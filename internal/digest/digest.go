@@ -46,6 +46,9 @@ type DigestStats struct {
 	AccountsFailed int
 	// HighPriorityCount is the number of high-priority classifications.
 	HighPriorityCount int
+	// AnalysisFailedCount is the number of messages whose analysis (summary,
+	// key_points, action_items) failed validation and fell back to raw excerpt.
+	AnalysisFailedCount int
 	// TopSenders lists the most frequent senders (format: "addr (count)").
 	TopSenders []string
 	// TopDomains lists the most frequent domains (format: "domain (count)").
@@ -54,15 +57,16 @@ type DigestStats struct {
 
 // AccountStats captures aggregate counts and fetch status for one account.
 type AccountStats struct {
-	AccountLabel    string
-	FetchedCount    int
-	ClassifiedCount int
-	FailedCount     int
-	ReadCount       int
-	UnreadCount     int
-	CountsByLabel   map[string]int
-	Status          string
-	Error           string
+	AccountLabel        string
+	FetchedCount        int
+	ClassifiedCount     int
+	FailedCount         int
+	ReadCount           int
+	UnreadCount         int
+	CountsByLabel       map[string]int
+	Status              string
+	Error               string
+	AnalysisFailedCount int
 	// TopSenders lists the most frequent senders for this account.
 	TopSenders []string
 	// TopDomains lists the most frequent domains for this account.
@@ -75,15 +79,16 @@ type AccountStats struct {
 
 // DigestData is the input data for a digest renderer.
 type DigestData struct {
-	RunID           string
-	GeneratedAt     time.Time
-	AccountLabel    string
-	Messages        []MessageEntry
-	TotalFetched    int
-	TotalClassified int
-	FailedCount     int
-	GlobalStats     DigestStats
-	AccountStats    []AccountStats
+	RunID               string
+	GeneratedAt         time.Time
+	AccountLabel        string
+	Messages            []MessageEntry
+	TotalFetched        int
+	TotalClassified     int
+	FailedCount         int
+	GlobalStats         DigestStats
+	AccountStats        []AccountStats
+	AnalysisFailedCount int
 
 	// Highlights is a short, deterministic list of notable observations for
 	// this run (e.g. "3 high-priority emails", "1 account failed", "Ads up

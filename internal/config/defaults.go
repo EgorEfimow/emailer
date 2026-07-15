@@ -19,13 +19,14 @@ func DefaultConfig() Config {
 		MaxWindow:       72 * time.Hour,
 
 		LLM: LLMConfig{
-			Provider:      "",
-			APIKey:        "",
-			Model:         "",
-			Endpoint:      "",
-			Timeout:       120 * time.Second,
-			MaxRetries:    3,
-			MaxConcurrent: 4,
+			Provider:                "",
+			APIKey:                  "",
+			Model:                   "",
+			Endpoint:                "",
+			Timeout:                 120 * time.Second,
+			MaxRetries:              3,
+			MaxConcurrent:           4,
+			AnalysisRepairMaxAttempts: 1,
 		},
 
 		IMAP: IMAPConfig{

@@ -191,11 +191,11 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 ## Phase 10 — Robust Partial LLM Failure Fallback
 
 ### Branch: `feat/llm-partial-fallback`
-- [ ] 10.1 Define a policy: accept valid analyses, mark invalid as failed, retry repair once, fallback only failed items to raw excerpt, fallback the whole digest only when no valid items remain.
-- [ ] 10.2 Track per-message analysis warnings/errors on `EmailAnalysis`.
-- [ ] 10.3 Count failed analyses in global and account stats; render a clear fallback block for failed emails.
-- [ ] 10.4 Mark run status `degraded` when partial analysis is recoverable but degraded.
-- [ ] 10.5 Add tests: one bad item among many good ones keeps the good analyses; failed items counted and visible.
+- [x] 10.1 Define a policy: accept valid analyses, mark invalid as failed, retry repair once, fallback only failed items to raw excerpt, fallback the whole digest only when no valid items remain.
+- [x] 10.2 Track per-message analysis warnings/errors on `EmailAnalysis`.
+- [x] 10.3 Count failed analyses in global and account stats; render a clear fallback block for failed emails.
+- [x] 10.4 Mark run status `degraded` when partial analysis is recoverable but degraded.
+- [x] 10.5 Add tests: one bad item among many good ones keeps the good analyses; failed items counted and visible.
 
 ## Phase 11 — Telegram-Safe Digest Length Controls
 

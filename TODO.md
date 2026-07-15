@@ -21,7 +21,7 @@ the same commit (see `AGENTS.md` §13).
 
 - [x] "What changed" highlights block (Phase 8)
 - [ ] LLM response schema versioning (Phase 9)
-- [ ] Robust partial LLM failure fallback (Phase 10)
+- [x] Robust partial LLM failure fallback (Phase 10)
 - [ ] Telegram-safe digest length controls (Phase 11)
 - [ ] Digest configuration options (Phase 12)
 

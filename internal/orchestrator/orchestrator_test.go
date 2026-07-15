@@ -188,20 +188,85 @@ var _ mail.Ingester = (*fakeIngester)(nil)
 
 // fakeProvider implements llm.Provider for testing.
 type fakeProvider struct {
-	response llm.Response
-	callErr  error
-	called   bool
+	response  llm.Response
+	callErr   error
+	called    bool
+	callCount int
+}
+
+// For multi-call scenarios (e.g., initial + repair)
+type multiCallProvider struct {
+	callCount int
+	responses []llm.Response
+	errors    []error
 }
 
 func (f *fakeProvider) Name() string { return "test-provider" }
 
-func (f *fakeProvider) Classify(_ context.Context, _ llm.Request) (llm.Response, error) {
+func (f *fakeProvider) Classify(_ context.Context, req llm.Request) (llm.Response, error) {
 	f.called = true
+	f.callCount++
+	// If no response set, return a valid default response for all requested messages
+	if len(f.response.Classifications) == 0 && len(req.Messages) > 0 {
+		classifications := make([]mail.Classification, len(req.Messages))
+		for i, msg := range req.Messages {
+			classifications[i] = mail.Classification{
+				Key:         msg.Key,
+				Label:       "Useful",
+				Confidence:  0.9,
+				Reason:      "test classification",
+				Summary:     "Test summary",
+				KeyPoints:   []string{"Test key point"},
+				ActionItems: nil,
+				Priority:    "medium",
+			}
+		}
+		return llm.Response{
+			Classifications: classifications,
+			TokenUsage:      llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			RawResponse:     buildRawResponse(req.Messages, classifications),
+			SchemaVersion:   1,
+		}, f.callErr
+	}
 	return f.response, f.callErr
+}
+
+func (m *multiCallProvider) Name() string { return "test-provider" }
+
+func (m *multiCallProvider) Classify(_ context.Context, _ llm.Request) (llm.Response, error) {
+	if m.callCount >= len(m.responses) {
+		return llm.Response{}, errors.New("no more responses")
+	}
+	resp := m.responses[m.callCount]
+	err := m.errors[m.callCount]
+	m.callCount++
+	return resp, err
 }
 
 // compile-time check
 var _ llm.Provider = (*fakeProvider)(nil)
+var _ llm.Provider = (*multiCallProvider)(nil)
+
+// buildRawResponse builds a valid raw JSON response for testing.
+func buildRawResponse(messages []llm.InputMessage, classifications []mail.Classification) string {
+	if len(messages) != len(classifications) {
+		return `{"schema_version":1,"classifications":[]}`
+	}
+	parts := make([]string, len(messages))
+	for i := range messages {
+		parts[i] = fmt.Sprintf(`{"uid":%d,"account":"%s","label":"%s","confidence":%.1f,"reason":"%s","summary":"%s","key_points":["%s"],"action_items":[],"priority":"%s"}`,
+			messages[i].Key.UID,
+			messages[i].Key.AccountLabel,
+			classifications[i].Label,
+			classifications[i].Confidence,
+			classifications[i].Reason,
+			classifications[i].Summary,
+			classifications[i].KeyPoints[0],
+			classifications[i].Priority,
+		)
+	}
+	return fmt.Sprintf(`{"schema_version":1,"classifications":[%s]}`, strings.Join(parts, ","))
+}
 
 // fakeRenderer implements digest.Renderer for testing.
 type fakeRenderer struct {
@@ -503,9 +568,8 @@ func TestRunAllAccountsFail(t *testing.T) {
 }
 
 func TestRunStoreFinishRunFails(t *testing.T) {
-	s := &fakeStore{
-		finishRunErr: errors.New("store error"),
-	}
+	s := newFakeStore()
+	s.finishRunErr = errors.New("store error")
 	ingester := &fakeIngester{messages: []mail.Message{
 		{AccountLabel: "personal", UID: 1, Subject: "Test", Body: "Body", Date: time.Now()},
 	}}
@@ -831,7 +895,12 @@ func TestRunPartialAccountFailureExposesErrorToDigest(t *testing.T) {
 			"work":     &fakeIngester{messages: []mail.Message{msg}},
 			"personal": &fakeIngester{fetchErr: errors.New("imap timeout")},
 		},
-		&fakeProvider{response: llm.Response{Classifications: []mail.Classification{{Key: msg.Key(), Label: "Useful", Confidence: 0.9}}}},
+		&fakeProvider{response: llm.Response{
+			Classifications: []mail.Classification{{Key: msg.Key(), Label: "Useful", Confidence: 0.9, Reason: "test", Summary: "Test", KeyPoints: []string{"Test"}, Priority: "medium"}},
+			TokenUsage:      llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			RawResponse: `{"schema_version":1,"classifications":[{"uid":1,"account":"work","label":"Useful","confidence":0.9,"reason":"test","summary":"Test","key_points":["Test"],"action_items":[],"priority":"medium"}]}`,
+			SchemaVersion:   1,
+		}},
 		renderer,
 		&fakeRenderer{name: "fallback", output: "# Fallback"},
 		&fakeChannel{name: "telegram"},
@@ -1128,6 +1197,8 @@ func TestRunWithClassifications(t *testing.T) {
 		response: llm.Response{
 			Classifications: classifications,
 			TokenUsage:      llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			RawResponse: `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.95,"reason":"Important","summary":"Test summary","key_points":["Test key point"],"action_items":[],"priority":"medium"},{"uid":2,"account":"personal","label":"ToDelete","confidence":0.8,"reason":"Spam","summary":"Test summary","key_points":["Test key point"],"action_items":[],"priority":"medium"}]}`,
+			SchemaVersion:   1,
 		},
 	}
 
@@ -1787,6 +1858,251 @@ func TestBuildHighlights_SenderBurst(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected sender burst highlight, got %v", data.Highlights)
+	}
+}
+
+// testConfig returns a valid Config for testing.
+func testConfig() config.Config {
+	cfg := config.DefaultConfig()
+	cfg.IMAP.Accounts = []config.IMAPAccount{
+		{Label: "personal", Host: "imap.example.com", Username: "user", Password: "pass"},
+	}
+	cfg.LLM.Provider = "gemini"
+	cfg.LLM.APIKey = "test-api-key"
+	cfg.LLM.Model = "test-model"
+	return cfg
+}
+
+// ---------------------------------------------------------------------------
+// Tests: classifyWithPartialFallback
+// ---------------------------------------------------------------------------
+
+func TestClassifyWithPartialFallback_OneBadAmongMany(t *testing.T) {
+	s := newFakeStore()
+	now := time.Now()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Good 1", From: "a@b.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 2, Subject: "Bad", From: "c@d.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 3, Subject: "Good 2", From: "e@f.com", Body: "Body", Date: now},
+	}
+	ingester := &fakeIngester{messages: msgs}
+
+	// Provider returns valid for UIDs 1 and 3, but invalid (missing summary) for UID 2
+	provider := &fakeProvider{
+		response: llm.Response{
+			Classifications: []mail.Classification{
+				{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Reason: "good", Summary: "Summary 1", KeyPoints: []string{"kp1"}, Priority: "medium"},
+				{Key: mail.MessageKey{AccountLabel: "personal", UID: 2}, Label: "Useful", Confidence: 0.9, Reason: "bad", Summary: "", KeyPoints: []string{}, Priority: "medium"}, // invalid: empty summary, empty key_points
+				{Key: mail.MessageKey{AccountLabel: "personal", UID: 3}, Label: "Useful", Confidence: 0.9, Reason: "good", Summary: "Summary 3", KeyPoints: []string{"kp3"}, Priority: "medium"},
+			},
+			TokenUsage:   llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			RawResponse: `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.9,"reason":"good","summary":"Summary 1","key_points":["kp1"],"action_items":[],"priority":"medium"},{"uid":2,"account":"personal","label":"Useful","confidence":0.9,"reason":"bad","summary":"","key_points":[],"action_items":[],"priority":"medium"},{"uid":3,"account":"personal","label":"Useful","confidence":0.9,"reason":"good","summary":"Summary 3","key_points":["kp3"],"action_items":[],"priority":"medium"}]}`,
+			SchemaVersion: 1,
+		},
+	}
+
+	p := New(
+		s,
+		map[string]mail.Ingester{"personal": ingester},
+		provider,
+		&fakeRenderer{name: "markdown", output: "# Digest"},
+		&fakeRenderer{name: "fallback", output: "# Fallback"},
+		&fakeChannel{name: "telegram"},
+		slog.Default(),
+		testConfig(),
+	)
+
+	result := p.Run(context.Background(), RunOptions{})
+
+	if result.Status != store.RunStatusPartiallyClassified {
+		t.Errorf("expected partially_classified, got %q", result.Status)
+	}
+	if result.TotalFetched != 3 {
+		t.Errorf("expected 3 fetched, got %d", result.TotalFetched)
+	}
+	if result.AnalysisFailedCount != 1 {
+		t.Errorf("expected 1 analysis failed, got %d", result.AnalysisFailedCount)
+	}
+	if result.TotalClassified != 3 {
+		t.Errorf("expected 3 classified, got %d", result.TotalClassified)
+	}
+}
+
+func TestClassifyWithPartialFallback_AllFail(t *testing.T) {
+	s := newFakeStore()
+	now := time.Now()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Bad 1", From: "a@b.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 2, Subject: "Bad 2", From: "c@d.com", Body: "Body", Date: now},
+	}
+	ingester := &fakeIngester{messages: msgs}
+
+	provider := &fakeProvider{
+		response: llm.Response{
+			Classifications: []mail.Classification{
+				{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Reason: "bad", Summary: "", KeyPoints: []string{}, Priority: "medium"},
+				{Key: mail.MessageKey{AccountLabel: "personal", UID: 2}, Label: "Useful", Confidence: 0.9, Reason: "bad", Summary: "", KeyPoints: []string{}, Priority: "medium"},
+			},
+			TokenUsage:   llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+			RawResponse: `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.9,"reason":"bad","summary":"","key_points":[],"action_items":[],"priority":"medium"},{"uid":2,"account":"personal","label":"Useful","confidence":0.9,"reason":"bad","summary":"","key_points":[],"action_items":[],"priority":"medium"}]}`,
+			SchemaVersion: 1,
+		},
+	}
+
+	p := New(
+		s,
+		map[string]mail.Ingester{"personal": ingester},
+		provider,
+		&fakeRenderer{name: "markdown", output: "# Digest"},
+		&fakeRenderer{name: "fallback", output: "# Fallback"},
+		&fakeChannel{name: "telegram"},
+		slog.Default(),
+		testConfig(),
+	)
+
+	result := p.Run(context.Background(), RunOptions{})
+
+	// All items failed - should use fallback renderer and status degraded
+	if result.Status != store.RunStatusDegraded {
+		t.Errorf("expected degraded (all failed), got %q", result.Status)
+	}
+	if result.AnalysisFailedCount != 2 {
+		t.Errorf("expected 2 analysis failed, got %d", result.AnalysisFailedCount)
+	}
+}
+
+func TestClassifyWithPartialFallback_NoneFail(t *testing.T) {
+	s := newFakeStore()
+	now := time.Now()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Good 1", From: "a@b.com", Body: "Body", Date: now},
+		{AccountLabel: "personal", UID: 2, Subject: "Good 2", From: "c@d.com", Body: "Body", Date: now},
+	}
+	ingester := &fakeIngester{messages: msgs}
+
+	// Default fake provider returns valid for all
+	p := defaultPipeline(s, ingester)
+
+	result := p.Run(context.Background(), RunOptions{})
+
+	if result.Status != store.RunStatusCompleted {
+		t.Errorf("expected completed (all valid), got %q", result.Status)
+	}
+	if result.AnalysisFailedCount != 0 {
+		t.Errorf("expected 0 analysis failed, got %d", result.AnalysisFailedCount)
+	}
+}
+
+func TestClassifyWithPartialFallback_RepairSucceeds(t *testing.T) {
+	s := newFakeStore()
+	now := time.Now()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Bad", From: "a@b.com", Body: "Body", Date: now},
+	}
+	ingester := &fakeIngester{messages: msgs}
+
+	// Use multiCallProvider to simulate initial invalid response + repair success
+	provider := &multiCallProvider{
+		responses: []llm.Response{
+			// First call - invalid (empty summary)
+			{
+				Classifications: []mail.Classification{
+					{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Reason: "bad", Summary: "", KeyPoints: []string{}, Priority: "medium"},
+				},
+				TokenUsage:   llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+				RawResponse:  `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.9,"reason":"bad","summary":"","key_points":[],"action_items":[],"priority":"medium"}]}`,
+				SchemaVersion: 1,
+			},
+			// Second call (repair) - valid
+			{
+				Classifications: []mail.Classification{
+					{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Reason: "repaired", Summary: "Fixed summary", KeyPoints: []string{"Fixed kp"}, Priority: "medium"},
+				},
+				TokenUsage:   llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+				RawResponse: `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.9,"reason":"repaired","summary":"Fixed summary","key_points":["Fixed kp"],"action_items":[],"priority":"medium"}]}`,
+				SchemaVersion: 1,
+			},
+		},
+		errors: []error{nil, nil},
+	}
+
+	p := New(
+		s,
+		map[string]mail.Ingester{"personal": ingester},
+		provider,
+		&fakeRenderer{name: "markdown", output: "# Digest"},
+		&fakeRenderer{name: "fallback", output: "# Fallback"},
+		&fakeChannel{name: "telegram"},
+		slog.Default(),
+		testConfig(),
+	)
+
+	result := p.Run(context.Background(), RunOptions{})
+
+	if result.Status != store.RunStatusCompleted {
+		t.Errorf("expected completed (repair succeeded), got %q", result.Status)
+	}
+	if result.AnalysisFailedCount != 0 {
+		t.Errorf("expected 0 analysis failed after repair, got %d", result.AnalysisFailedCount)
+	}
+	if provider.callCount != 2 {
+		t.Errorf("expected 2 provider calls (initial + repair), got %d", provider.callCount)
+	}
+}
+
+func TestClassifyWithPartialFallback_RepairFails(t *testing.T) {
+	s := newFakeStore()
+	now := time.Now()
+
+	msgs := []mail.Message{
+		{AccountLabel: "personal", UID: 1, Subject: "Bad", From: "a@b.com", Body: "Body", Date: now},
+	}
+	ingester := &fakeIngester{messages: msgs}
+
+	// Use multiCallProvider to simulate initial invalid response + repair error
+	provider := &multiCallProvider{
+		responses: []llm.Response{
+			// First call - invalid (empty summary)
+			{
+				Classifications: []mail.Classification{
+					{Key: mail.MessageKey{AccountLabel: "personal", UID: 1}, Label: "Useful", Confidence: 0.9, Reason: "bad", Summary: "", KeyPoints: []string{}, Priority: "medium"},
+				},
+				TokenUsage:   llm.TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+				RawResponse:  `{"schema_version":1,"classifications":[{"uid":1,"account":"personal","label":"Useful","confidence":0.9,"reason":"bad","summary":"","key_points":[],"action_items":[],"priority":"medium"}]}`,
+				SchemaVersion: 1,
+			},
+			// Second call (repair) - error
+			llm.Response{},
+		},
+		errors: []error{nil, errors.New("repair provider error")},
+	}
+
+	p := New(
+		s,
+		map[string]mail.Ingester{"personal": ingester},
+		provider,
+		&fakeRenderer{name: "markdown", output: "# Digest"},
+		&fakeRenderer{name: "fallback", output: "# Fallback"},
+		&fakeChannel{name: "telegram"},
+		slog.Default(),
+		testConfig(),
+	)
+
+	result := p.Run(context.Background(), RunOptions{})
+
+	// All items failed (0 valid) - status should be degraded
+	if result.Status != store.RunStatusDegraded {
+		t.Errorf("expected degraded (all failed), got %q", result.Status)
+	}
+	if result.AnalysisFailedCount != 1 {
+		t.Errorf("expected 1 analysis failed after repair failure, got %d", result.AnalysisFailedCount)
+	}
+	if provider.callCount != 2 {
+		t.Errorf("expected 2 provider calls (initial + repair), got %d", provider.callCount)
 	}
 }
 

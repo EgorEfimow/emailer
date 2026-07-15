@@ -89,8 +89,8 @@ Ensure the provider name exactly matches one of the registered providers
 
 - Check the logs for the run status.
 - If the run status is `ingest_failed`, all IMAP accounts failed.
-- If the run status is `degraded`, the LLM failed but a fallback digest was
-  sent.
+- If the run status is `degraded`, the LLM failed completely but a fallback digest was sent.
+- If the run status is `partially_classified`, some messages were classified successfully but others failed analysis and fell back to raw excerpts.
 - Check the Telegram bot hasn't been blocked by the user.
 
 ## State Store Issues

@@ -23,6 +23,7 @@ func loadFlags(args []string, cfg *Config) error {
 	llmTimeout := fs.Duration("llm-timeout", cfg.LLM.Timeout, "")
 	llmMaxRetries := fs.Int("llm-max-retries", cfg.LLM.MaxRetries, "")
 	llmMaxConcurrent := fs.Int("llm-max-concurrent", cfg.LLM.MaxConcurrent, "")
+	llmAnalysisRepairMaxAttempts := fs.Int("llm-analysis-repair-max-attempts", cfg.LLM.AnalysisRepairMaxAttempts, "")
 
 	// ── IMAP single account ─────────────────────────────────────────
 	imapHost := fs.String("imap-host", "", "")
@@ -71,6 +72,7 @@ func loadFlags(args []string, cfg *Config) error {
 	cfg.LLM.Timeout = *llmTimeout
 	cfg.LLM.MaxRetries = *llmMaxRetries
 	cfg.LLM.MaxConcurrent = *llmMaxConcurrent
+	cfg.LLM.AnalysisRepairMaxAttempts = *llmAnalysisRepairMaxAttempts
 
 	// IMAP single account (only if host is set)
 	if *imapHost != "" {

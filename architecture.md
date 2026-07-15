@@ -145,6 +145,7 @@ internal/
 - Token budgeter computes per-message cost; batches split before provider call.
 - Retry policy: 3 attempts, jittered exponential backoff (base 1s, factor 2, jitter ±25%), only on 429/5xx/network.
 - Output validated against JSON schema before use.
+- **Partial analysis fallback:** When the LLM response contains a mix of valid and invalid per-message analyses, the pipeline applies a repair-once policy per `llm.analysis_repair_max_attempts` (default 1). Valid analyses are accepted; invalid items are retried via a repair prompt. Items still invalid after repair are classified as `Unknown` with a raw body excerpt and an `AnalysisError` recorded. The digest renders these with a fallback block. If zero valid analyses remain after repair, the whole digest falls back to `FallbackRenderer`. Run status becomes `partially_classified` when analysis failures exist but valid items remain; `degraded` when all items fail.
 
 ### 5.5 Act Service (`internal/mail`)
 
@@ -156,8 +157,8 @@ internal/
 ### 5.6 Digest Renderers (`internal/digest`)
 
 - `Renderer` interface with `Render(ctx, DigestData) (string, error)` and `Name() string`.
-- `DigestData` struct: run metadata, per-message entries with subject, from, date, read/unread status, classification label/confidence/reason, and excerpt.
-- `MarkdownRenderer`: `text/template`-based, groups messages by classification label in alphabetical order, renders Date and Read/Unread status explicitly, respects `MaxMessageExcerpt` and `IncludeReadStatus` config.
+- `DigestData` struct: run metadata, per-message entries with subject, from, date, read/unread status, classification label/confidence/reason, summary, key points, action items, priority, and excerpt. Also carries `GlobalStats`, `AccountStats`, `Highlights`, and `AnalysisFailedCount`.
+- `MarkdownRenderer`: `text/template`-based, groups messages by classification label in alphabetical order, renders Date and Read/Unread status explicitly, respects `MaxMessageExcerpt` and `IncludeReadStatus` config. Includes a "Needs Attention" section for high-priority messages. For messages where LLM analysis failed (summary/key_points/action_items validation failed), renders a fallback block showing the raw excerpt with an error indicator.
 - `FallbackRenderer`: simplified digest for LLM failure, lists all fetched messages without classification labels.
 
 ### 5.7 Notify Service (`internal/notify`)
@@ -198,6 +199,7 @@ internal/
 | All accounts fail | Run status `ingest_failed`, alert sent, exit non-zero. |
 | LLM transient failure | Retry 3× with backoff. |
 | LLM permanent failure | Render fallback digest, status `degraded`, alert sent. |
+| LLM partial analysis failure | Accept valid analyses, retry repair once, fallback failed items to raw excerpt, status `partially_classified` if any valid items remain. |
 | Flag write fails | Log per-UID error, continue, status `partial`. |
 | Telegram send fails | Retry 3×, log, exit non-zero. |
 | Context cancelled | Drain in-flight work, persist run status, exit 130. |

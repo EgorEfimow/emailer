@@ -61,6 +61,9 @@ func validateLLMConfig(c LLMConfig) (errs []error) {
 	if c.MaxConcurrent <= 0 {
 		errs = append(errs, fmt.Errorf("llm.max_concurrent must be positive, got %d", c.MaxConcurrent))
 	}
+	if c.AnalysisRepairMaxAttempts < 0 {
+		errs = append(errs, fmt.Errorf("llm.analysis_repair_max_attempts must be >= 0, got %d", c.AnalysisRepairMaxAttempts))
+	}
 	return errs
 }
 

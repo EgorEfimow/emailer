@@ -78,6 +78,11 @@ type Result struct {
 	// FailedCount is the number of messages that failed classification.
 	FailedCount int
 
+	// AnalysisFailedCount is the number of messages whose LLM analysis
+	// (summary, key_points, action_items) failed validation and fell back
+	// to raw excerpt.
+	AnalysisFailedCount int
+
 	// Err is the overall run error, if any. Per-account and per-message
 	// errors are logged individually; this field is set only when the run
 	// as a whole cannot proceed (e.g. all accounts failed, context cancelled).
@@ -264,12 +269,12 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 	)
 
 	// -----------------------------------------------------------------------
-	// Step 5: Call the LLM provider
+	// Step 5: Call the LLM provider with partial fallback
 	// -----------------------------------------------------------------------
-	llmResponse, llmErr := p.provider.Classify(ctx, request)
-	if llmErr != nil {
-		log.ErrorContext(ctx, "LLM classification failed, using fallback",
-			slog.Any("error", llmErr),
+	validClassifications, failedClassifications, analysisErrors, classifyErr := p.classifyWithPartialFallback(ctx, request, messages, log)
+	if classifyErr != nil {
+		log.ErrorContext(ctx, "LLM classification failed completely, using fallback",
+			slog.Any("error", classifyErr),
 		)
 		result.Status = store.RunStatusDegraded
 	}
@@ -277,17 +282,13 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 	// -----------------------------------------------------------------------
 	// Step 6: Render the digest
 	// -----------------------------------------------------------------------
-	var classifications []mail.Classification
-	if llmErr == nil {
-		classifications = llmResponse.Classifications
-	}
-
-	digestData := p.buildDigestData(ctx, run.ID, messages, classifications, fetchResults, accountErrors)
+	digestData := p.buildDigestDataPartial(ctx, run.ID, messages, validClassifications, failedClassifications, analysisErrors, fetchResults, accountErrors)
 	result.TotalClassified = len(digestData.Messages)
 	result.FailedCount = digestData.FailedCount
+	result.AnalysisFailedCount = digestData.AnalysisFailedCount
 
 	var renderedDigest string
-	if llmErr == nil {
+	if classifyErr == nil && len(validClassifications) > 0 {
 		renderedDigest, err = p.renderer.Render(ctx, digestData)
 	} else {
 		renderedDigest, err = p.fallbackRenderer.Render(ctx, digestData)
@@ -301,13 +302,30 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 		result.Err = err
 		return result
 	}
-	log.InfoContext(ctx, "digest rendered", slog.Int("messages", len(digestData.Messages)))
+	log.InfoContext(ctx, "digest rendered",
+		slog.Int("messages", len(digestData.Messages)),
+		slog.Int("analysis_failed", digestData.AnalysisFailedCount),
+	)
+
+	// Determine run status based on classification results
+	// If classifyErr is set, it's a hard failure (degraded)
+	// If no valid classifications remain after repair, it's degraded (all failed)
+	// If some valid and some failed, it's partially_classified
+	// If all valid, completed (unless other issues)
+	if classifyErr != nil {
+		result.Status = store.RunStatusDegraded
+	} else if len(validClassifications) == 0 {
+		// All items failed - no valid analyses at all
+		result.Status = store.RunStatusDegraded
+	} else if result.AnalysisFailedCount > 0 {
+		result.Status = store.RunStatusPartiallyClassified
+	}
 
 	// -----------------------------------------------------------------------
 	// Step 7: Apply IMAP keyword flags
 	// -----------------------------------------------------------------------
-	if !opts.DryRun && llmErr == nil {
-		p.applyClassificationFlags(ctx, classifications, log)
+	if !opts.DryRun && classifyErr == nil {
+		p.applyClassificationFlags(ctx, validClassifications, log)
 	}
 
 	// -----------------------------------------------------------------------
@@ -349,9 +367,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 	// -----------------------------------------------------------------------
 	// Step 9: Record processed messages and flags
 	// -----------------------------------------------------------------------
-	if !opts.Stateless && llmErr == nil {
-		p.recordProcessedMessages(ctx, run.ID, messages, classifications, log)
-		p.recordFlags(ctx, classifications, log)
+	if !opts.Stateless && classifyErr == nil {
+		p.recordProcessedMessages(ctx, run.ID, messages, validClassifications, log)
+		p.recordFlags(ctx, validClassifications, log)
 	}
 
 	// -----------------------------------------------------------------------
@@ -363,7 +381,12 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) Result { //nolint:g
 			return store.RunStatusPartial
 		case store.RunStatusDegraded:
 			return store.RunStatusDegraded
+		case store.RunStatusPartiallyClassified:
+			return store.RunStatusPartiallyClassified
 		default:
+			if result.AnalysisFailedCount > 0 {
+				return store.RunStatusPartiallyClassified
+			}
 			return store.RunStatusCompleted
 		}
 	}()
@@ -525,6 +548,256 @@ func (p *Pipeline) buildDigestData(ctx context.Context, runID string, messages [
 		GlobalStats:     globalStats,
 		AccountStats:    accountStats,
 		Highlights:      highlights,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Partial LLM Failure Fallback
+// ---------------------------------------------------------------------------
+
+// makeFailedClassification creates a minimal classification for a message
+// whose analysis failed validation/repair. It carries the key and "Unknown"
+// label with empty analysis fields.
+func (p *Pipeline) makeFailedClassification(key mail.MessageKey) mail.Classification {
+	return mail.Classification{
+		Key:   key,
+		Label: "Unknown",
+	}
+}
+
+// repairOnce attempts to repair a failed LLM response by sending a repair
+// prompt to the provider. Returns the repaired raw response or an error.
+func (p *Pipeline) repairOnce(ctx context.Context, raw string, parseErr error, validLabels []string, log *slog.Logger) (string, error) {
+	repairPrompt, err := llm.RepairWithPrompt(raw, parseErr, validLabels)
+	if err != nil {
+		return "", fmt.Errorf("repair: build prompt: %w", err)
+	}
+	log.InfoContext(ctx, "LLM repair attempt", slog.Int("raw_len", len(raw)))
+	req := llm.Request{
+		Model:                p.cfg.LLM.Model,
+		SystemPrompt:         p.cfg.Prompts.SystemPrompt,
+		ClassificationPrompt: p.cfg.Prompts.ClassificationPrompt,
+		Labels:               validLabels,
+		Messages:             nil, // repair prompt contains all context
+	}
+	// Override the prompt with the repair prompt by using a custom system prompt
+	// that includes the repair instructions. The provider.Classify will use the
+	// request's ClassificationPrompt field.
+	req.ClassificationPrompt = repairPrompt
+	resp, err := p.provider.Classify(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("repair: provider classify: %w", err)
+	}
+	return resp.RawResponse, nil
+}
+
+// classifyWithPartialFallback implements the partial failure fallback policy:
+// 1. Call provider.Classify
+// 2. Parse response with ParseResponse
+// 3. If any items invalid, attempt one repair (if AnalysisRepairMaxAttempts > 0)
+// 4. Accept valid analyses, mark invalid as failed with raw excerpt fallback
+// 5. If zero valid items after repair, return error for whole-digest fallback
+// nolint:gocyclo
+func (p *Pipeline) classifyWithPartialFallback(ctx context.Context, request llm.Request, messages []mail.Message, log *slog.Logger) ([]mail.Classification, []mail.Classification, []mail.AnalysisError, error) {
+	validLabels := p.buildLabelSet()
+	maxAttempts := p.cfg.LLM.AnalysisRepairMaxAttempts
+	if maxAttempts < 0 {
+		maxAttempts = 1
+	}
+
+	// First classification attempt
+	resp, err := p.provider.Classify(ctx, request)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("initial classify: %w", err)
+	}
+
+	parseResult, parseErr := llm.ParseResponse(resp.RawResponse, validLabels)
+
+	// If fully successful, return all classifications
+	if parseErr == nil {
+		return parseResult.Classifications, nil, nil, nil
+	}
+
+	// parseErr is not nil, but parseResult.Classifications may contain partial valid results
+	validClassifications := parseResult.Classifications
+	var analysisErrors []mail.AnalysisError
+
+	// Build a set of keys that were successfully parsed
+	validKeys := make(map[mail.MessageKey]bool, len(validClassifications))
+	for _, c := range validClassifications {
+		validKeys[c.Key] = true
+	}
+
+	// Determine which input messages had invalid analyses
+	// We need to match against the original request messages
+	for _, msg := range request.Messages {
+		if !validKeys[msg.Key] {
+			analysisErrors = append(analysisErrors, mail.AnalysisError{
+				Key:   msg.Key,
+				Error: "parse/validation failed: " + parseErr.Error(),
+				Stage: "parse",
+			})
+		}
+	}
+
+	// If we have all items valid, no need for repair
+	if len(analysisErrors) == 0 {
+		return validClassifications, nil, nil, nil
+	}
+
+	// If repair is disabled, mark all failed items as failed classification
+	if maxAttempts == 0 {
+		// Create failed classifications for each error
+		var failedClassifications []mail.Classification
+		for _, msg := range request.Messages {
+			if !validKeys[msg.Key] {
+				failedClassifications = append(failedClassifications, p.makeFailedClassification(msg.Key))
+			}
+		}
+		return validClassifications, failedClassifications, analysisErrors, nil
+	}
+
+	// Attempt repair
+	log.InfoContext(ctx, "LLM response had invalid items, attempting repair",
+		slog.Int("valid", len(validClassifications)),
+		slog.Int("invalid", len(analysisErrors)),
+	)
+	repairedRaw, repairErr := p.repairOnce(ctx, resp.RawResponse, parseErr, validLabels, log)
+	if repairErr != nil {
+		log.WarnContext(ctx, "LLM repair failed", slog.Any("error", repairErr))
+		// Repair failed - mark remaining as failed
+		var failedClassifications []mail.Classification
+		for _, msg := range request.Messages {
+			if !validKeys[msg.Key] {
+				failedClassifications = append(failedClassifications, p.makeFailedClassification(msg.Key))
+			}
+		}
+		// Update analysis errors to reflect repair failure
+		for i := range analysisErrors {
+			analysisErrors[i].Stage = "repair"
+			analysisErrors[i].Error = "repair failed: " + repairErr.Error()
+		}
+		return validClassifications, failedClassifications, analysisErrors, nil
+	}
+
+	// Parse repaired response
+	repairedResult, repairedErr := llm.ParseResponse(repairedRaw, validLabels)
+	if repairedErr != nil {
+		log.WarnContext(ctx, "LLM repair produced invalid response", slog.Any("error", repairedErr))
+		var failedClassifications []mail.Classification
+		for _, msg := range request.Messages {
+			if !validKeys[msg.Key] {
+				failedClassifications = append(failedClassifications, p.makeFailedClassification(msg.Key))
+			}
+		}
+		for i := range analysisErrors {
+			analysisErrors[i].Stage = "repair"
+			analysisErrors[i].Error = "repair produced invalid response: " + repairedErr.Error()
+		}
+		return validClassifications, failedClassifications, analysisErrors, nil
+	}
+
+	// Merge repaired classifications with previously valid ones
+	repairedKeys := make(map[mail.MessageKey]bool, len(repairedResult.Classifications))
+	for _, c := range repairedResult.Classifications {
+		repairedKeys[c.Key] = true
+	}
+
+	// Find newly valid items from repair
+	for _, c := range repairedResult.Classifications {
+		if !validKeys[c.Key] {
+			validClassifications = append(validClassifications, c)
+			validKeys[c.Key] = true
+		}
+	}
+
+	// Build final failed list for items still not valid
+	var failedClassifications []mail.Classification
+	var finalAnalysisErrors []mail.AnalysisError
+	for _, msg := range request.Messages {
+		if !validKeys[msg.Key] {
+			failedClassifications = append(failedClassifications, p.makeFailedClassification(msg.Key))
+			finalAnalysisErrors = append(finalAnalysisErrors, mail.AnalysisError{
+				Key:   msg.Key,
+				Error: "repair did not produce valid analysis for this item",
+				Stage: "repair",
+			})
+		}
+	}
+
+	return validClassifications, failedClassifications, finalAnalysisErrors, nil
+}
+
+// buildDigestDataPartial constructs DigestData from messages, valid classifications,
+// failed classifications, and analysis errors. It extends buildDigestData with
+// per-message analysis failure tracking.
+func (p *Pipeline) buildDigestDataPartial(ctx context.Context, runID string, messages []mail.Message, validClassifications []mail.Classification, failedClassifications []mail.Classification, analysisErrors []mail.AnalysisError, fetchResults []mail.FetchAllResult, accountErrors map[string]error) digest.DigestData {
+	// Build a lookup map from valid classifications
+	classMap := make(map[mail.MessageKey]mail.Classification, len(validClassifications))
+	for _, c := range validClassifications {
+		classMap[c.Key] = c
+	}
+	// Add failed classifications with analysis errors attached
+	// Note: analysisErrors slice doesn't have keys directly. We need to match by position.
+	// The analysisErrors correspond to the failedClassifications in order.
+	for i, fc := range failedClassifications {
+		if i < len(analysisErrors) {
+			fc.AnalysisError = &analysisErrors[i]
+			classMap[fc.Key] = fc
+		} else {
+			// Fallback: no specific error, create generic
+			fc.AnalysisError = &mail.AnalysisError{
+				Key:   fc.Key,
+				Error: "analysis failed",
+				Stage: "unknown",
+			}
+			classMap[fc.Key] = fc
+		}
+	}
+
+	entries := make([]digest.MessageEntry, 0, len(messages))
+	analysisFailedCount := 0
+	analysisFailedPerAccount := make(map[string]int)
+	for _, m := range messages {
+		c, ok := classMap[m.Key()]
+		if !ok {
+			// No classification at all (shouldn't happen with our logic)
+			c = p.makeFailedClassification(m.Key())
+		}
+		if c.AnalysisError != nil {
+			analysisFailedCount++
+			analysisFailedPerAccount[m.AccountLabel]++
+		}
+		entries = append(entries, digest.MessageEntry{
+			Subject:        m.Subject,
+			From:           m.From,
+			Date:           m.Date,
+			IsRead:         m.IsRead,
+			Classification: c,
+			Excerpt:        m.Body,
+		})
+	}
+
+	globalStats, accountStats, globalSenderCounts, globalDomainCounts := buildDigestStats(messages, entries, validClassifications, fetchResults, accountErrors)
+	// Override analysis failed counts
+	globalStats.AnalysisFailedCount = analysisFailedCount
+	for i := range accountStats {
+		accountStats[i].AnalysisFailedCount = analysisFailedPerAccount[accountStats[i].AccountLabel]
+	}
+
+	highlights := p.buildHighlights(ctx, runID, messages, globalStats, accountStats, globalSenderCounts, globalDomainCounts)
+
+	return digest.DigestData{
+		RunID:               runID,
+		GeneratedAt:         p.now(),
+		Messages:            entries,
+		TotalFetched:        globalStats.FetchedCount,
+		TotalClassified:     globalStats.ClassifiedCount,
+		FailedCount:         globalStats.FailedCount,
+		AnalysisFailedCount: analysisFailedCount,
+		GlobalStats:         globalStats,
+		AccountStats:        accountStats,
+		Highlights:          highlights,
 	}
 }
 

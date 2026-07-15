@@ -79,15 +79,23 @@ type AttachmentMeta struct {
 // Classification represents the LLM's classification result for a single
 // message. The Key field links the result back to the original message.
 type Classification struct {
-	Key         MessageKey
-	Label       string   // e.g. "Useful", "ToDelete", "Ads", or a custom label
-	Confidence  float64  // 0.0 to 1.0
-	Reason      string   // short justification from the LLM
-	Summary     string   // concise summary of the email
-	KeyPoints   []string // important facts or details from the email
-	ActionItems []string // optional follow-up tasks requested by the email
-	Priority    string   // optional priority indicator from the LLM: high, medium, or low
-	Urgency     string   // deprecated optional urgency indicator from the LLM
+	Key           MessageKey
+	Label         string   // e.g. "Useful", "ToDelete", "Ads", or a custom label
+	Confidence    float64  // 0.0 to 1.0
+	Reason        string   // short justification from the LLM
+	Summary       string   // concise summary of the email
+	KeyPoints     []string // important facts or details from the email
+	ActionItems   []string // optional follow-up tasks requested by the email
+	Priority      string   // optional priority indicator from the LLM: high, medium, or low
+	Urgency       string   // deprecated optional urgency indicator from the LLM
+	AnalysisError *AnalysisError // non-nil when this classification failed validation or repair
+}
+
+// AnalysisError captures the reason a single message's LLM analysis failed.
+type AnalysisError struct {
+	Key    MessageKey // composite key (account_label, uid) of the failed message
+	Error  string     // e.g. "empty summary", "invalid priority", "repair failed"
+	Stage  string     // "parse", "validate", "repair"
 }
 
 // ---------------------------------------------------------------------------

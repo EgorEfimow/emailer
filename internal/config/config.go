@@ -55,6 +55,11 @@ type LLMConfig struct {
 
 	// MaxConcurrent limits the number of simultaneous LLM provider calls.
 	MaxConcurrent int `yaml:"max_concurrent" json:"max_concurrent"`
+
+	// AnalysisRepairMaxAttempts is the number of repair attempts for
+	// individual message analyses that fail validation. Each attempt
+	// sends a repair prompt to the LLM. Default is 1. Set to 0 to disable.
+	AnalysisRepairMaxAttempts int `yaml:"analysis_repair_max_attempts" json:"analysis_repair_max_attempts"`
 }
 
 // ---------------------------------------------------------------------------

@@ -161,6 +161,28 @@ func TestValidate_LLMConfig(t *testing.T) {
 			mustNotHaveErr(t, err, "max_retries")
 		}
 	})
+
+	t.Run("analysis_repair_max_attempts negative", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.LLM.AnalysisRepairMaxAttempts = -1
+		mustHaveErr(t, Validate(cfg), "analysis_repair_max_attempts must be >= 0")
+	})
+
+	t.Run("analysis_repair_max_attempts zero is ok", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.LLM.AnalysisRepairMaxAttempts = 0
+		if err := Validate(cfg); err != nil {
+			mustNotHaveErr(t, err, "analysis_repair_max_attempts")
+		}
+	})
+
+	t.Run("analysis_repair_max_attempts positive is ok", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.LLM.AnalysisRepairMaxAttempts = 5
+		if err := Validate(cfg); err != nil {
+			mustNotHaveErr(t, err, "analysis_repair_max_attempts")
+		}
+	})
 }
 
 func TestValidate_IMAPConfig(t *testing.T) {

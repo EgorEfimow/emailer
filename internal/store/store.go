@@ -50,12 +50,13 @@ func itoa(n uint32) string {
 type RunStatus string
 
 const (
-	RunStatusRunning     RunStatus = "running"
-	RunStatusCompleted   RunStatus = "completed"
-	RunStatusDegraded    RunStatus = "degraded"
-	RunStatusIngestFailed RunStatus = "ingest_failed"
-	RunStatusPartial     RunStatus = "partial"
-	RunStatusCancelled   RunStatus = "cancelled"
+	RunStatusRunning           RunStatus = "running"
+	RunStatusCompleted         RunStatus = "completed"
+	RunStatusDegraded          RunStatus = "degraded"
+	RunStatusIngestFailed      RunStatus = "ingest_failed"
+	RunStatusPartial           RunStatus = "partial"
+	RunStatusPartiallyClassified RunStatus = "partially_classified"
+	RunStatusCancelled         RunStatus = "cancelled"
 )
 
 // Run represents a single pipeline execution.

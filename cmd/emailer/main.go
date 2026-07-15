@@ -279,7 +279,7 @@ func run() int { //nolint:gocyclo
 	}
 
 	switch result.Status {
-	case store.RunStatusCompleted, store.RunStatusDegraded, store.RunStatusPartial:
+	case store.RunStatusCompleted, store.RunStatusDegraded, store.RunStatusPartial, store.RunStatusPartiallyClassified:
 		return 0
 
 	case store.RunStatusIngestFailed:
