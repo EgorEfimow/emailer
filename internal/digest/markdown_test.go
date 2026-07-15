@@ -449,6 +449,137 @@ func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 	}
 }
 
+func TestMarkdownRenderer_NeedsAttentionSection(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-needs-attn",
+		GeneratedAt: now,
+		TotalFetched: 3,
+		TotalClassified: 3,
+		Messages: []MessageEntry{
+			{
+				Subject:        "Urgent security update",
+				From:           "security@example.com",
+				Date:           now,
+				IsRead:         false,
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.98, Reason: "Security vulnerability", Priority: "high"},
+				Excerpt:        "Please patch immediately.",
+			},
+			{
+				Subject:        "Low priority newsletter",
+				From:           "news@example.com",
+				Date:           now.Add(time.Hour),
+				IsRead:         true,
+				Classification: mail.Classification{Label: "Ads", Confidence: 0.7, Reason: "Weekly newsletter", Priority: "low"},
+				Excerpt:        "This week in tech.",
+			},
+			{
+				Subject:        "Medium priority review",
+				From:           "pm@example.com",
+				Date:           now.Add(2*time.Hour),
+				IsRead:         true,
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.85, Reason: "Needs review", Priority: "medium"},
+				Excerpt:        "Please review the design doc.",
+			},
+		},
+		GlobalStats: DigestStats{
+			FetchedCount:     3,
+			ClassifiedCount:  3,
+			ReadCount:        2,
+			UnreadCount:      1,
+			HighPriorityCount: 1,
+			CountsByLabel: map[string]int{
+				"Ads":    1,
+				"Useful": 2,
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	// Verify the Needs Attention section is present.
+	if !strings.Contains(result, "Needs Attention") {
+		t.Fatalf("result missing 'Needs Attention' section:\n%s", result)
+	}
+
+	// High-priority message should appear in the Needs Attention section first,
+	// then again in its label group later.
+	highPos := strings.Index(result, "Urgent security update")
+	needsPos := strings.Index(result, "Needs Attention")
+	usefulPos := strings.Index(result, "## Useful")
+
+	if highPos == -1 || needsPos == -1 || usefulPos == -1 {
+		t.Fatalf("result missing expected sections:\n%s", result)
+	}
+
+	// High-priority message should appear before the Useful section (it's in Needs Attention).
+	if highPos >= usefulPos {
+		t.Fatalf("high-priority item should appear before label groups:\n%s", result)
+	}
+
+	// Verify high-priority count in stats.
+	if !strings.Contains(result, "**High priority:** 1") {
+		t.Fatalf("result missing high priority count:\n%s", result)
+	}
+
+	// Verify the message detail in the Needs Attention section.
+	if !strings.Contains(result, "🔴 High") {
+		t.Fatalf("result missing high priority badge:\n%s", result)
+	}
+
+	// Verify low and medium messages are NOT in the Needs Attention section.
+	needsSectionEnd := strings.Index(result, "---")
+	if needsSectionEnd > 0 {
+		section := result[needsPos:needsSectionEnd]
+		if strings.Contains(section, "Low priority newsletter") {
+			t.Fatal("low priority message should not appear in Needs Attention section")
+		}
+		if strings.Contains(section, "Medium priority review") {
+			t.Fatal("medium priority message should not appear in Needs Attention section")
+		}
+	}
+}
+
+func TestMarkdownRenderer_NoNeedsAttentionWhenNoHighPriority(t *testing.T) {
+	now := time.Now()
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-no-high",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject:        "Medium priority",
+				From:           "medium@example.com",
+				Date:           now,
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.8, Reason: "Medium", Priority: "medium"},
+				Excerpt:        "Medium priority content.",
+			},
+			{
+				Subject:        "Low priority",
+				From:           "low@example.com",
+				Date:           now,
+				Classification: mail.Classification{Label: "Ads", Confidence: 0.7, Reason: "Low", Priority: "low"},
+				Excerpt:        "Low priority content.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	if strings.Contains(result, "Needs Attention") {
+		t.Fatal("Needs Attention section should not appear when no high-priority messages")
+	}
+}
+
 func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	r := NewMarkdownRenderer(true, 200)

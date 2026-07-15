@@ -37,6 +37,15 @@ type DigestStats struct {
 	ReadCount       int
 	UnreadCount     int
 	CountsByLabel   map[string]int
+
+	// AccountsChecked is the total number of accounts considered this run.
+	AccountsChecked int
+	// AccountsSucceeded is the number of accounts that fetched successfully.
+	AccountsSucceeded int
+	// AccountsFailed is the number of accounts whose fetch failed.
+	AccountsFailed int
+	// HighPriorityCount is the number of high-priority classifications.
+	HighPriorityCount int
 }
 
 // AccountStats captures aggregate counts and fetch status for one account.

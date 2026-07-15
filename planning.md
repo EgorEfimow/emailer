@@ -1,82 +1,172 @@
-# Planning
+# Email AI Agent Implementation Plan
 
-This document is the canonical, step-by-step, smallest-possible-increment
-plan for building the Email AI Agent. Every step is a single, testable,
-mergeable change. No step depends on a later step. No step combines two
-concerns.
+This document lists **actionable tasks** for the email digest pipeline, grouped by feature area. Each task is a single, testable change. Checkboxes reflect **implementation status** (`[x]` = done, `[ ]` = not started).
 
-Legend:
-- `[ ]` not started
-- `[x]` done (update as we go)
+---
 
-## Phase 1 — Structured Email Analysis Model
+## 1. Update LLM Response Schema and Domain Model
 
-### Branch: `feat/email-analysis-model`
-- [ ] 1.1 Create an `EmailAnalysis` domain type in `internal/llm` with fields: `MessageKey`, `Label`, `Confidence`, `Reason`, `Summary`, `KeyPoints []string`, `ActionItems []string`, `Priority`, `Warnings []string`.
-- [ ] 1.2 Update the LLM `Response` type to carry `[]EmailAnalysis`.
-- [ ] 1.3 Update `ParseResponse` (`internal/llm/parse.go`) to build `EmailAnalysis`, mapping classification plus new fields.
-- [ ] 1.4 Add unit tests for `EmailAnalysis` construction and per-field mapping.
-- [ ] 1.5 Update the orchestrator to pass `EmailAnalysis` (not raw classification) to the digest renderer and flag application.
-- [ ] 1.6 Add unit tests for orchestrator wiring with the new model.
-- [ ] 1.7 Keep IMAP flag application based solely on the `Label` field.
+**Goal:** Extend the LLM response schema and domain model to include structured analysis fields (`summary`, `key_points`, `action_items`, `priority`).
 
-## Phase 2 — Global Statistics Block
+- [x] In `internal/mail/types.go`, extend `Classification` with:
+  ```go
+  Summary     string   // concise summary of the email
+  KeyPoints   []string // important facts or details from the email
+  ActionItems []string // optional follow-up tasks requested by the email
+  Priority    string   // priority indicator: high, medium, or low
+  ```
+- [x] In `internal/llm/prompt.go`, update `defaultPromptTemplate` so every email returns JSON fields:
+  ```json
+  {
+    "summary": "...",
+    "key_points": ["..."],
+    "action_items": ["..."],
+    "priority": "high|medium|low",
+    "label": "...",
+    "confidence": 0.0,
+    "reason": "..."
+  }
+  ```
+- [x] In `internal/llm/parse.go`, extend `classificationItem` and `ParseResponse` to parse and validate:
+  - `summary` (non-empty string)
+  - `key_points` (non-empty array of strings)
+  - `action_items` (optional array of strings)
+  - `priority` (one of: `high`, `medium`, `low`; invalid → item rejected)
+- [x] Update tests in `internal/llm/*_test.go` and testdata under `testdata/gemini/` to include the new JSON shape.
 
-### Branch: `feat/digest-global-stats`
-- [ ] 2.1 Add a `GlobalStats` model to `internal/digest` (`DigestData`): accounts checked/succeeded/failed, totals fetched/classified/failed, counts by label, read/unread counts, high-priority count.
-- [ ] 2.2 Compute `GlobalStats` in the orchestrator after fetch and classification complete.
-- [ ] 2.3 Render an "Overall statistics" block at the very top of the Markdown digest, before account sections and email details.
-- [ ] 2.4 Add unit tests asserting label counts equal the sum of all per-message classifications.
-- [ ] 2.5 Add a unit test for a partial-failure run showing both successful and failed account counts.
+---
 
-## Phase 3 — Per-Account Statistics and Error Reporting
+## 2. Introduce Explicit Stats Structures in `internal/digest/digest.go`
 
-### Branch: `feat/digest-account-stats`
-- [ ] 3.1 Add an `AccountStats` model to `internal/digest`: label, fetch status (success/partial/failed), fetched/classified/failed counts, counts by label, read/unread counts, error message, optional top sender/domain.
-- [ ] 3.2 Preserve account fetch errors from the ingest stage through to rendering (Task 5).
-- [ ] 3.3 Compute `AccountStats` per account in the orchestrator.
-- [ ] 3.4 Render a compact per-account section after the global block; render a visible warning for failed accounts (no secrets leaked).
-- [ ] 3.5 Ensure zero-message accounts can still render a clear "no new messages" line.
-- [ ] 3.6 Add unit tests: per-account section per account, failed account marked, zero-message account labeled.
+**Goal:** Add structured statistics models (`DigestStats`, `AccountStats`) to track global and per-account metrics.
 
-## Phase 4 — Summary and Key Points per Email
+- [x] In `internal/digest/digest.go`, add:
+  ```go
+  type DigestStats struct {
+    FetchedCount      int
+    ClassifiedCount   int
+    FailedCount       int
+    ReadCount         int
+    UnreadCount       int
+    CountsByLabel     map[string]int
+    AccountsChecked   int
+    AccountsSucceeded int
+    AccountsFailed    int
+    HighPriorityCount int
+  }
+  
+  type AccountStats struct {
+    AccountLabel    string
+    FetchedCount    int
+    ClassifiedCount int
+    FailedCount     int
+    ReadCount       int
+    UnreadCount     int
+    CountsByLabel   map[string]int
+    Status          string // "ok" or "error"
+    Error           string // fetch error message
+  }
+  ```
+- [x] Extend `DigestData` with:
+  ```go
+  GlobalStats  DigestStats
+  AccountStats []AccountStats
+  ```
+- [x] In `internal/orchestrator/orchestrator.go`, update `buildDigestData` to aggregate stats from:
+  - `messages` (fetched count, read/unread)
+  - `classifications` (classified count, label counts, priority)
+  - `fetchResults` (account status, errors)
+- [x] In `internal/digest/markdown.go`, render:
+  - Global summary block (`## Summary`) at the top
+  - Account-level stats (`## Account Stats`) with warnings for failed accounts
+  - Detailed message sections grouped by label
+- [x] Add renderer tests in `internal/digest/markdown_test.go` for stats aggregation and error reporting.
 
-### Branch: `feat/llm-summary-keypoints`
-- [ ] 4.1 Extend the LLM prompt (`internal/llm/prompt.go`) to request `summary` (1–3 sentences) and `key_points` (3–5 bullets) per email.
-- [ ] 4.2 Extend `EmailAnalysis` with `Summary` and `KeyPoints`, and update parser validation.
-- [ ] 4.3 Store summary/key points in message entries consumed by the renderer.
-- [ ] 4.4 Update the Markdown template to render summary and key points per email under the classification.
-- [ ] 4.5 Use the raw excerpt only as fallback when summary generation fails.
-- [ ] 4.6 Add parser, prompt, and renderer tests for the new fields and graceful fallback.
+---
 
-## Phase 5 — Priority / Urgency Detection
+## 3. Expose Account Fetch Failures to Digest Rendering
 
-### Branch: `feat/llm-priority`
-- [ ] 5.1 Add a `Priority` field (controlled vocabulary: `high`, `medium`, `low`, `unknown`) to `EmailAnalysis` and the LLM schema.
-- [ ] 5.2 Extend the prompt to mark `high` for deadlines, direct requests, security/payment/legal/account-access/time-sensitive issues.
-- [ ] 5.3 Validate priority values in the parser; invalid → `unknown` per policy.
-- [ ] 5.4 Render a dedicated "Needs attention" section near the top for high-priority emails.
-- [ ] 5.5 Include priority counts in global and account statistics.
-- [ ] 5.6 Add parser and renderer tests for the priority vocabulary and fallback.
+**Goal:** Make account-level fetch errors visible in the digest.
 
-## Phase 6 — Action Item Extraction
+- [x] In `internal/orchestrator/orchestrator.go`, carry `accountErrors := mail.AccountErrors(fetchResults)` into `buildDigestData`.
+- [x] Add account status/error fields to `digest.AccountStats`:
+  ```go
+  Status string // "ok" or "error"
+  Error  string // fetch error message
+  ```
+- [x] In `internal/digest/markdown.go`, render a warning line for accounts with fetch errors:
+  ```markdown
+  ⚠️ **Fetch error:** connection refused
+  ```
+- [x] Add tests covering partial account failure in `internal/orchestrator/orchestrator_test.go` and `internal/digest/markdown_test.go`.
 
-### Branch: `feat/llm-action-items`
-- [ ] 6.1 Add `ActionItems []string` to `EmailAnalysis` and the LLM schema (empty array when none).
-- [ ] 6.2 Extend the prompt to return concise imperative action items.
-- [ ] 6.3 Update parser validation for `action_items`.
-- [ ] 6.4 Render action items under each email only when the list is non-empty.
-- [ ] 6.5 Optionally add action item counts to stats.
-- [ ] 6.6 Add tests covering empty vs. populated action items and template suppression of empty sections.
+---
 
-## Phase 7 — Sender and Domain Aggregation
+## 4. Extend LLM Analysis and Digest Sorting (Priority/Urgency)
 
-### Branch: `feat/digest-sender-aggregation`
-- [ ] 7.1 Parse sender addresses/domains from message metadata; normalize domains to lowercase; handle malformed/missing safely.
-- [ ] 7.2 Compute top senders and top domains globally and per account (bounded to a small number of entries).
-- [ ] 7.3 Add top-sender/domain fields to `GlobalStats`/`AccountStats`.
-- [ ] 7.4 Render a compact "Top senders" / "Noisiest domains" block in the statistics section.
-- [ ] 7.5 Add tests for normal addresses, display names, empty, and malformed sender values.
+**Goal:** Identify high-priority emails and make them prominent in the digest.
+
+- [x] Add a `Priority` field to the parsed LLM result (`high`, `medium`, `low`).
+- [x] In `internal/llm/prompt.go`, update the prompt to ask the model to identify urgent emails based on:
+  - Deadlines
+  - Payment/security risks
+  - Direct requests
+  - Calendar/time-sensitive content
+  - Sender context
+- [x] In `internal/llm/parse.go`, validate allowed priority values (invalid → item rejected).
+- [x] In `internal/digest/markdown.go`, add a dedicated "Needs attention" section near the top for high-priority emails.
+- [~] Include priority counts in global statistics (`DigestStats.HighPriorityCount` is populated; account-level counts not yet tracked).
+- [x] In `internal/digest/markdown.go`, sort messages so high-priority items appear first within each label group.
+- [x] Add unit tests for priority parsing and digest ordering in `internal/llm/parse_test.go` and `internal/digest/markdown_test.go`.
+
+---
+
+## 5. Render Summary, Key Points, and Action Items in Digest
+
+**Goal:** Replace raw email excerpts with LLM-generated summaries and key points in the digest.
+
+- [ ] In `internal/digest/markdown.go`, update the Markdown template to render `Summary` and `KeyPoints` per email under the classification:
+  ```markdown
+  ### Summary
+  > {{.Classification.Summary}}
+  
+  **Key points:**
+  {{range .Classification.KeyPoints}}- {{.}}
+  {{end}}
+  ```
+- [ ] In `internal/digest/markdown.go`, render `ActionItems` under each email only when the list is non-empty:
+  ```markdown
+  **Action items:**
+  {{range .Classification.ActionItems}}- {{.}}
+  {{end}}
+  ```
+- [ ] Use the raw excerpt only as fallback when summary generation fails.
+- [ ] Add renderer tests in `internal/digest/markdown_test.go` for summary/key points/action items.
+
+---
+
+## 6. Add Sender and Domain Aggregation
+
+**Goal:** Show which senders/domains are producing the most email in the current run.
+
+- [ ] In `internal/orchestrator/orchestrator.go`, parse sender addresses/domains from message metadata:
+  - Normalize domains to lowercase
+  - Handle malformed/missing sender fields safely
+- [ ] Compute top senders and top domains globally and per account (bounded to 5 entries).
+- [ ] Add top-sender/domain fields to `DigestStats` and `AccountStats`:
+  ```go
+  TopSenders  []string // e.g., ["sender@example.com", ...]
+  TopDomains  []string // e.g., ["example.com", ...]
+  ```
+- [ ] In `internal/digest/markdown.go`, render a compact "Top senders" / "Noisiest domains" block in the statistics section.
+- [ ] Add tests for sender/domain parsing and rendering in `internal/orchestrator/orchestrator_test.go` and `internal/digest/markdown_test.go`.
+
+---
+
+## Implementation Notes
+- **Design divergence:** The structured analysis model was implemented by extending `mail.Classification` (not as a separate `EmailAnalysis` type). `llm.Response.Classifications` carries `[]mail.Classification`.
+- **Stats models:** Global stats are named `DigestStats`; per-account stats are `AccountStats`. Both are fully implemented.
+- **Rendering gaps:** Summary/key points and action items are not yet rendered in the Markdown template. Sender/domain aggregation is not implemented.
 
 ## Phase 8 — "What Changed" Highlights
 
