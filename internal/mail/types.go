@@ -46,14 +46,14 @@ func itoa(n uint32) string {
 type Message struct {
 	AccountLabel string
 	UID          uint32
-	Folder       string          // e.g. "INBOX"
+	Folder       string // e.g. "INBOX"
 	Subject      string
 	From         string
 	To           string
 	Date         time.Time
-	Body         string          // plain-text body, converted to UTF-8
+	Body         string // plain-text body, converted to UTF-8
 	Attachments  []AttachmentMeta
-	IsRead       bool            // whether the \Seen flag was set on the server
+	IsRead       bool // whether the \Seen flag was set on the server
 }
 
 // Key returns the composite dedup key for this message.
@@ -79,10 +79,14 @@ type AttachmentMeta struct {
 // Classification represents the LLM's classification result for a single
 // message. The Key field links the result back to the original message.
 type Classification struct {
-	Key        MessageKey
-	Label      string  // e.g. "Useful", "ToDelete", "Ads", or a custom label
-	Confidence float64 // 0.0 to 1.0
-	Reason     string  // short justification from the LLM
+	Key         MessageKey
+	Label       string   // e.g. "Useful", "ToDelete", "Ads", or a custom label
+	Confidence  float64  // 0.0 to 1.0
+	Reason      string   // short justification from the LLM
+	Summary     string   // concise summary of the email
+	KeyPoints   []string // important facts or details from the email
+	ActionItems []string // optional follow-up tasks requested by the email
+	Urgency     string   // optional urgency indicator from the LLM
 }
 
 // ---------------------------------------------------------------------------

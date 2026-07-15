@@ -708,7 +708,7 @@ func TestClassify_NoUsageMetadata(t *testing.T) {
 		"candidates": [
 			{
 				"content": {
-					"parts": [{"text": "{\"classifications\": [{\"uid\": 1, \"account\": \"test\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"ok\"}]}"}],
+					"parts": [{"text": "{\"classifications\": [{\"uid\": 1, \"account\": \"test\", \"label\": \"Useful\", \"confidence\": 0.9, \"reason\": \"ok\", \"summary\": \"Email summary\", \"key_points\": [\"Key point\"]}]}"}],
 					"role": "model"
 				},
 				"finishReason": "STOP"

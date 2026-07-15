@@ -25,6 +25,10 @@ For each email, output a JSON object with these fields:
   - "label": the classification label from the list above (string)
   - "confidence": your confidence in this classification, 0.0 to 1.0 (float)
   - "reason": a short justification for the classification (string)
+  - "summary": a concise summary of the email (string)
+  - "key_points": important facts or details from the email (array of strings)
+  - "action_items": follow-up tasks requested by the email, if any (optional array of strings)
+  - "urgency": urgency indicator such as "low", "normal", or "high", if clear (optional string)
 
 {{range $i, $msg := .Messages}}
 <<< EMAIL {{$msg.Key.AccountLabel}}/{{$msg.Key.UID}} >>>
@@ -41,7 +45,7 @@ Body:
 Output ONLY valid JSON in this exact format (no markdown fences, no extra text):
 
 {"classifications": [
-  {"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "..."}
+  {"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "urgency": "normal"}
 ]}
 
 If you cannot classify an email, use label "Unknown" with confidence 0.0.`

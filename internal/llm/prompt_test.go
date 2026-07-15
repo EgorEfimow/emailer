@@ -91,6 +91,16 @@ func TestBuildPrompt_Structure(t *testing.T) {
 		t.Error("missing reason field in schema")
 	}
 
+	if !strings.Contains(prompt, `"summary"`) {
+		t.Error("missing summary field in schema")
+	}
+	if !strings.Contains(prompt, `"key_points"`) {
+		t.Error("missing key_points field in schema")
+	}
+	if !strings.Contains(prompt, `"action_items"`) {
+		t.Error("missing action_items field in schema")
+	}
+
 	// Check labels are listed.
 	if !strings.Contains(prompt, "- Useful") {
 		t.Error("missing Useful label")

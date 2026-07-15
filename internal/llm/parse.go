@@ -19,11 +19,15 @@ type classificationsWrapper struct {
 
 // classificationItem is a single classification in the LLM response JSON.
 type classificationItem struct {
-	UID        uint32  `json:"uid"`
-	Account    string  `json:"account"`
-	Label      string  `json:"label"`
-	Confidence float64 `json:"confidence"`
-	Reason     string  `json:"reason"`
+	UID         uint32   `json:"uid"`
+	Account     string   `json:"account"`
+	Label       string   `json:"label"`
+	Confidence  float64  `json:"confidence"`
+	Reason      string   `json:"reason"`
+	Summary     string   `json:"summary"`
+	KeyPoints   []string `json:"key_points"`
+	ActionItems []string `json:"action_items,omitempty"`
+	Urgency     string   `json:"urgency,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -90,11 +94,35 @@ func ParseResponse(raw string, validLabels []string) ([]mail.Classification, err
 			continue
 		}
 
+		// Validate required analysis fields.
+		if strings.TrimSpace(item.Summary) == "" {
+			errs = append(errs, fmt.Sprintf("item %d: empty summary for %s/%d", i, item.Account, item.UID))
+			continue
+		}
+		if len(item.KeyPoints) == 0 {
+			errs = append(errs, fmt.Sprintf("item %d: empty key_points for %s/%d", i, item.Account, item.UID))
+			continue
+		}
+		invalidKeyPoint := false
+		for j, point := range item.KeyPoints {
+			if strings.TrimSpace(point) == "" {
+				errs = append(errs, fmt.Sprintf("item %d: empty key_points[%d] for %s/%d", i, j, item.Account, item.UID))
+				invalidKeyPoint = true
+			}
+		}
+		if invalidKeyPoint {
+			continue
+		}
+
 		results = append(results, mail.Classification{
-			Key:        key,
-			Label:      item.Label,
-			Confidence: item.Confidence,
-			Reason:     item.Reason,
+			Key:         key,
+			Label:       item.Label,
+			Confidence:  item.Confidence,
+			Reason:      item.Reason,
+			Summary:     item.Summary,
+			KeyPoints:   item.KeyPoints,
+			ActionItems: item.ActionItems,
+			Urgency:     item.Urgency,
 		})
 	}
 
@@ -165,14 +193,15 @@ func RepairWithPrompt(raw string, parseErr error, validLabels []string) (string,
 	b.WriteString("Please fix the JSON and output ONLY valid JSON in this exact format (no markdown fences, no extra text):\n\n")
 	b.WriteString(`{"classifications": [`)
 	b.WriteString("\n  ")
-	b.WriteString(`{"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "..."}`)
+	b.WriteString(`{"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "urgency": "normal"}`)
 	b.WriteString("\n]}\n\n")
 	b.WriteString("Valid labels:\n")
 	b.WriteString(labels)
 	b.WriteString("\n\nRules:\n")
-	b.WriteString("- Each item must have: uid (number), account (string), label (string from the list above), confidence (0.0–1.0), reason (string)\n")
+	b.WriteString("- Each item must have: uid (number), account (string), label (string from the list above), confidence (0.0–1.0), reason (string), summary (non-empty string), key_points (non-empty array of strings)\n")
 	b.WriteString("- No duplicate (account, uid) pairs\n")
 	b.WriteString("- Confidence must be between 0.0 and 1.0\n")
+	b.WriteString("- action_items and urgency are optional\n")
 	b.WriteString("- Output ONLY the JSON object, nothing else\n")
 
 	return b.String(), nil
