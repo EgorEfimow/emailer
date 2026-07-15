@@ -46,7 +46,8 @@ func validateLLMConfig(c LLMConfig) (errs []error) {
 	if c.Provider == "" {
 		errs = append(errs, errors.New("llm.provider is required"))
 	}
-	if c.APIKey == "" {
+	// API key is required for all providers except Ollama (which typically runs locally without auth)
+	if c.Provider != "ollama" && c.APIKey == "" {
 		errs = append(errs, errors.New("llm.api_key is required"))
 	}
 	if c.Model == "" {

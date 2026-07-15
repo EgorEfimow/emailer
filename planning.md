@@ -180,7 +180,18 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [x] 8.3 Render highlights near the top; omit or show a neutral message when nothing notable.
 - [x] 8.4 Add unit tests for normal, no-new-mail, partial-failure, and high-priority scenarios.
 
-## Phase 9 — LLM Response Schema Versioning
+## Phase 9 — Ollama LLM Provider
+
+### Branch: `feat/llm-ollama`
+- [x] 9.1 Add provider constant and register Ollama in the provider registry.
+- [x] 9.2 Implement `internal/llm/ollama.Provider` with `Factory`, `Name()`, `Classify()`.
+- [x] 9.3 Use Ollama's `/api/chat` endpoint with system + user messages.
+- [x] 9.4 Accept empty API key (Ollama typically runs without auth).
+- [x] 9.5 Add HTTP fixtures under `testdata/ollama/` and contract tests.
+- [x] 9.6 Update `validateLLMConfig` to allow empty API key for Ollama.
+- [x] 9.7 Update `architecture.md` §5.4 and `.env.example` with Ollama notes.
+
+## Phase 10 — LLM Response Schema Versioning
 
 ### Branch: `feat/llm-schema-version`
 - [ ] 9.1 Add a top-level `schema_version` to the LLM JSON response and require it in the prompt.
@@ -197,35 +208,52 @@ This document lists **actionable tasks** for the email digest pipeline, grouped 
 - [x] 10.4 Mark run status `degraded` when partial analysis is recoverable but degraded.
 - [x] 10.5 Add tests: one bad item among many good ones keeps the good analyses; failed items counted and visible.
 
-## Phase 12 — Digest Configuration Options
+## Phase 11 — LLM Response Schema Versioning
+
+### Branch: `feat/llm-schema-version`
+- [ ] 11.1 Add a top-level `schema_version` to the LLM JSON response and require it in the prompt.
+- [ ] 11.2 Validate `schema_version` in the parser; decide backward-compatible fallback for the old classification-only schema.
+- [ ] 11.3 Update the repair prompt to request the current schema version.
+- [ ] 11.4 Add tests for valid current schema, missing version, unsupported version, and old-schema fallback if supported.
+
+## Phase 12 — Robust Partial LLM Failure Fallback
+
+### Branch: `feat/llm-partial-fallback`
+- [x] 12.1 Define a policy: accept valid analyses, mark invalid as failed, retry repair once, fallback only failed items to raw excerpt, fallback the whole digest only when no valid items remain.
+- [x] 12.2 Track per-message analysis warnings/errors on `EmailAnalysis`.
+- [x] 12.3 Count failed analyses in global and account stats; render a clear fallback block for failed emails.
+- [x] 12.4 Mark run status `degraded` when partial analysis is recoverable but degraded.
+- [x] 12.5 Add tests: one bad item among many good ones keeps the good analyses; failed items counted and visible.
+
+## Phase 13 — Digest Configuration Options
 
 ### Branch: `feat/digest-config`
-- [x] 12.1 Add a `digest` config section: `include_global_stats`, `include_account_stats`, `include_summaries`, `include_key_points`, `include_action_items`, `include_raw_excerpt_fallback`, `max_messages`, `max_key_points_per_message`, `max_action_items_per_message`, `priority_only`.
-- [x] 12.2 Provide safe defaults preserving current useful behavior.
-- [x] 12.3 Validate new options in `Validate()`; update `.env.example` and `config.example.yaml`.
-- [x] 12.4 Update `architecture.md` §5.1/§5.6 and docs (`docs/configuration.md`).
-- [x] 12.5 Wire config into renderer/channel construction.
-- [x] 12.6 Add tests for defaults, toggles, and invalid values.
+- [x] 13.1 Add a `digest` config section: `include_global_stats`, `include_account_stats`, `include_summaries`, `include_key_points`, `include_action_items`, `include_raw_excerpt_fallback`, `max_messages`, `max_key_points_per_message`, `max_action_items_per_message`, `priority_only`.
+- [x] 13.2 Provide safe defaults preserving current useful behavior.
+- [x] 13.3 Validate new options in `Validate()`; update `.env.example` and `config.example.yaml`.
+- [x] 13.4 Update `architecture.md` §5.1/§5.6 and docs (`docs/configuration.md`).
+- [x] 13.5 Wire config into renderer/channel construction.
+- [x] 13.6 Add tests for defaults, toggles, and invalid values.
 
-## Phase 13 — Docker (Optional)
+## Phase 14 — Docker (Optional)
 
 ### Branch: `chore/docker`
-- [ ] 13.1 Add `Dockerfile` multi-stage: `golang:1.25-alpine` build, `gcr.io/distroless/static-debian12:nonroot` runtime.
-- [ ] 13.2 Add `.dockerignore`.
+- [ ] 14.1 Add `Dockerfile` multi-stage: `golang:1.25-alpine` build, `gcr.io/distroless/static-debian12:nonroot` runtime.
+- [ ] 14.2 Add `.dockerignore`.
 
-## Phase 14 — Hardening and Final Audit
+## Phase 15 — Hardening and Final Audit
 
 ### Branch: `chore/hardening-audit`
-- [ ] 14.1 Run `golangci-lint` and resolve all findings.
-- [ ] 14.2 Run `govulncheck` and resolve all findings.
-- [ ] 14.3 Run `go test -race ./...`.
-- [ ] 14.4 Audit all error paths for log coverage.
-- [ ] 14.5 Audit all secrets for redaction coverage.
-- [x] 14.6 Audit all network calls for timeout and retry.
-- [ ] 14.7 Verify `architecture.md`, `AGENTS.md`, `planning.md` reflect final state.
+- [ ] 15.1 Run `golangci-lint` and resolve all findings.
+- [ ] 15.2 Run `govulncheck` and resolve all findings.
+- [ ] 15.3 Run `go test -race ./...`.
+- [ ] 15.4 Audit all error paths for log coverage.
+- [ ] 15.5 Audit all secrets for redaction coverage.
+- [x] 15.6 Audit all network calls for timeout and retry.
+- [ ] 15.7 Verify `architecture.md`, `AGENTS.md`, `planning.md` reflect final state.
 
-## Phase 15 — Release
+## Phase 16 — Release
 
 ### Branch: `release/v0.1.0`
-- [ ] 15.3 Run end-to-end on staging for 7 consecutive days.
-- [ ] 15.5 Publish release notes.
+- [ ] 16.3 Run end-to-end on staging for 7 consecutive days.
+- [ ] 16.5 Publish release notes.

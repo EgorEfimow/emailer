@@ -9,7 +9,7 @@ the same commit (see `AGENTS.md` §13).
 
 ## Providers
 
-- [ ] Ollama (`internal/llm/ollama`)
+- [x] Ollama (`internal/llm/ollama`)
 - [ ] OpenRouter (`internal/llm/openrouter`)
 
 ## Packaging
@@ -30,9 +30,3 @@ the same commit (see `AGENTS.md` §13).
 - [ ] In Telegram channel, split oversized payloads or fall back to a document when over limits
 - [ ] Add truncation indicators and keep MarkdownV2 valid after splitting/truncation
 - [ ] Tests covering truncation and oversized-digest delivery behavior
-
-## Release process (planning.md Phase 15)
-
-- [ ] Tag `v0.1.0-rc.1` and cut release candidate
-- [ ] 7-day staging soak
-- [ ] Tag `v0.1.0` and publish release notes
