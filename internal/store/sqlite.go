@@ -115,7 +115,7 @@ func (s *SQLiteStore) RecordRun(ctx context.Context, r Run) (Run, error) {
 	const query = "INSERT INTO runs (id, started_at, finished_at, status, message_count, error) VALUES (?, ?, ?, ?, ?, ?)"
 	_, err := s.db.ExecContext(ctx, query,
 		r.ID,
-		r.StartedAt,
+		formatTime(r.StartedAt),
 		nil, // finished_at is NULL when starting
 		r.Status,
 		r.MessageCount,
@@ -141,7 +141,7 @@ func (s *SQLiteStore) FinishRun(ctx context.Context, runID string, status RunSta
 
 	const query = "UPDATE runs SET finished_at = ?, status = ?, message_count = ?, error = ? WHERE id = ?"
 	result, err := s.db.ExecContext(ctx, query,
-		time.Now(),
+		formatTime(time.Now()),
 		status,
 		messageCount,
 		errStr,
@@ -171,12 +171,12 @@ func (s *SQLiteStore) GetRun(ctx context.Context, runID string) (Run, error) {
 	row := s.db.QueryRowContext(ctx, query, runID)
 
 	var (
-		id             string
-		startedAtStr   string
-		finishedAtStr  sql.NullString
-		status         string
-		messageCount   int
-		errorStr       string
+		id            string
+		startedAtStr  string
+		finishedAtStr sql.NullString
+		status        string
+		messageCount  int
+		errorStr      string
 	)
 	if err := row.Scan(&id, &startedAtStr, &finishedAtStr, &status, &messageCount, &errorStr); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -333,7 +333,7 @@ func (s *SQLiteStore) RecordMessage(ctx context.Context, m ProcessedMessage) err
 		isRead,
 		m.Classification,
 		m.DigestExcerpt,
-		m.ProcessedAt,
+		formatTime(m.ProcessedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("store.RecordMessage: exec: %w", err)
@@ -407,7 +407,7 @@ func (s *SQLiteStore) RecordFlag(ctx context.Context, r FlagRecord) error {
 		r.AccountLabel,
 		r.UID,
 		r.Flag,
-		r.AppliedAt,
+		formatTime(r.AppliedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("store.RecordFlag: exec: %w", err)
@@ -446,25 +446,46 @@ func (s *SQLiteStore) RecordDigest(ctx context.Context, d DigestRecord) error {
 // ErrRunNotFound is returned when a run ID is not found in the store.
 var ErrRunNotFound = errors.New("run not found")
 
-// parseTime parses a timestamp string as stored by modernc.org/sqlite.
-// The driver stores time.Time as "2006-01-02 15:04:05.999999999 -0700 -07"
-// optionally followed by a monotonic clock suffix like " m=+0.013361351".
-// The monotonic suffix is stripped before parsing.
+// timeLayout is the single canonical layout used for every timestamp we
+// write to and read from SQLite. Using one explicit, fixed layout on both
+// sides avoids depending on the sqlite driver's implicit stringification of
+// time.Time, whose output shape varies with the process's local timezone
+// database (numeric offset like "+0200" vs. named zone like "UTC") and with
+// how many fractional-second digits happen to be non-zero.
+const timeLayout = time.RFC3339Nano
+
+// formatTime renders t as a UTC string in timeLayout. All timestamps are
+// normalised to UTC before storage so reads never have to worry about zone
+// interpretation.
+func formatTime(t time.Time) string {
+	return t.UTC().Format(timeLayout)
+}
+
+// parseTime parses a timestamp string previously written by formatTime.
+// It also tolerates legacy rows written before this fix, which may have
+// been stored using the sqlite driver's default time.Time stringification
+// (e.g. "2006-01-02 15:04:05.999999999 -0700 -07" or "... -0700 MST",
+// optionally followed by a monotonic clock suffix like " m=+0.013361351").
 func parseTime(s string) (time.Time, error) {
-	// Strip the monotonic clock suffix if present.
+	// Strip a monotonic clock suffix if present (legacy rows only).
 	if idx := strings.Index(s, " m="); idx >= 0 {
 		s = s[:idx]
 	}
 
-	formats := []string{
+	if t, err := time.Parse(timeLayout, s); err == nil {
+		return t, nil
+	}
+
+	// Legacy fallback formats, kept only for backward compatibility with
+	// rows written before this fix. New writes always use timeLayout.
+	legacyFormats := []string{
 		"2006-01-02 15:04:05.999999999 -0700 -07",
+		"2006-01-02 15:04:05.999999999 -0700 MST",
 		"2006-01-02 15:04:05.999999999 -0700",
 		"2006-01-02 15:04:05 -0700",
 		"2006-01-02 15:04:05",
-		"2006-01-02T15:04:05.999999999Z07:00",
-		"2006-01-02T15:04:05Z07:00",
 	}
-	for _, f := range formats {
+	for _, f := range legacyFormats {
 		if t, err := time.Parse(f, s); err == nil {
 			return t, nil
 		}
