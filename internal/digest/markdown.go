@@ -52,6 +52,7 @@ func (r *MarkdownRenderer) Render(_ context.Context, data DigestData) (string, e
 			"labelCounts": labelCounts,
 			"add1":        func(n int) int { return n + 1 },
 			"mul":         func(a, b float64) float64 { return a * b },
+			"priority":    displayPriority,
 			"now":         time.Now,
 		}).
 		Parse(markdownTemplate)
@@ -179,7 +180,43 @@ func groupByLabel(entries []MessageEntry) map[string][]MessageEntry {
 		}
 		groups[label] = append(groups[label], e)
 	}
+	for label := range groups {
+		sort.SliceStable(groups[label], func(i, j int) bool {
+			left := priorityRank(groups[label][i].Classification.Priority)
+			right := priorityRank(groups[label][j].Classification.Priority)
+			if left != right {
+				return left < right
+			}
+			return groups[label][i].Date.After(groups[label][j].Date)
+		})
+	}
 	return groups
+}
+
+func priorityRank(priority string) int {
+	switch strings.ToLower(strings.TrimSpace(priority)) {
+	case "high":
+		return 0
+	case "medium":
+		return 1
+	case "low":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func displayPriority(priority string) string {
+	switch strings.ToLower(strings.TrimSpace(priority)) {
+	case "high":
+		return "🔴 High"
+	case "medium":
+		return "🟡 Medium"
+	case "low":
+		return "🟢 Low"
+	default:
+		return "Unspecified"
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +278,7 @@ No account stats available.
 {{- if $.IncludeReadStatus}}
 **Status:** {{readBadge $entry.IsRead}}
 {{- end}}
+**Priority:** {{priority $entry.Classification.Priority}}
 **Confidence:** {{printf "%.0f" (mul $entry.Classification.Confidence 100)}}%
 **Reason:** {{$entry.Classification.Reason}}
 

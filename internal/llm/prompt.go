@@ -28,7 +28,12 @@ For each email, output a JSON object with these fields:
   - "summary": a concise summary of the email (string)
   - "key_points": important facts or details from the email (array of strings)
   - "action_items": follow-up tasks requested by the email, if any (optional array of strings)
-  - "urgency": urgency indicator such as "low", "normal", or "high", if clear (optional string)
+  - "priority": one of "high", "medium", or "low" (string)
+
+Assess priority using these signals:
+  - high: explicit deadlines or due dates soon, payment or security risk, direct requests to the recipient, calendar/time-sensitive commitments, or important sender context.
+  - medium: useful business or personal updates that may need review but have no immediate deadline or risk.
+  - low: informational, promotional, automated, or non-actionable messages with little time sensitivity.
 
 {{range $i, $msg := .Messages}}
 <<< EMAIL {{$msg.Key.AccountLabel}}/{{$msg.Key.UID}} >>>
@@ -45,7 +50,7 @@ Body:
 Output ONLY valid JSON in this exact format (no markdown fences, no extra text):
 
 {"classifications": [
-  {"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "urgency": "normal"}
+  {"uid": ..., "account": "...", "label": "...", "confidence": 0.0, "reason": "...", "summary": "...", "key_points": ["..."], "action_items": ["..."], "priority": "medium"}
 ]}
 
 If you cannot classify an email, use label "Unknown" with confidence 0.0.`

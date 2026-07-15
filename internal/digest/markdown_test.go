@@ -448,3 +448,54 @@ func TestMarkdownRenderer_RendersStatsBlocksBeforeMessages(t *testing.T) {
 		last = idx
 	}
 }
+
+func TestMarkdownRenderer_SortsHighPriorityFirstWithinLabel(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	r := NewMarkdownRenderer(true, 200)
+
+	data := DigestData{
+		RunID:       "run-priority",
+		GeneratedAt: now,
+		Messages: []MessageEntry{
+			{
+				Subject:        "Low priority update",
+				From:           "news@example.com",
+				Date:           now.Add(2 * time.Hour),
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.8, Reason: "Informational", Priority: "low"},
+				Excerpt:        "Weekly update.",
+			},
+			{
+				Subject:        "Payment security deadline",
+				From:           "billing@example.com",
+				Date:           now,
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.95, Reason: "Payment risk", Priority: "high"},
+				Excerpt:        "Verify payment details by today.",
+			},
+			{
+				Subject:        "Medium priority review",
+				From:           "pm@example.com",
+				Date:           now.Add(time.Hour),
+				Classification: mail.Classification{Label: "Useful", Confidence: 0.9, Reason: "Needs review", Priority: "medium"},
+				Excerpt:        "Please review when available.",
+			},
+		},
+	}
+
+	result, err := r.Render(context.Background(), data)
+	if err != nil {
+		t.Fatalf("Render() returned error: %v", err)
+	}
+
+	highPos := strings.Index(result, "Payment security deadline")
+	mediumPos := strings.Index(result, "Medium priority review")
+	lowPos := strings.Index(result, "Low priority update")
+	if highPos == -1 || mediumPos == -1 || lowPos == -1 {
+		t.Fatalf("result missing expected subjects:\n%s", result)
+	}
+	if !(highPos < mediumPos && mediumPos < lowPos) {
+		t.Fatalf("messages not sorted by priority:\n%s", result)
+	}
+	if !strings.Contains(result, "**Priority:** 🔴 High") {
+		t.Fatalf("result missing high priority badge:\n%s", result)
+	}
+}
